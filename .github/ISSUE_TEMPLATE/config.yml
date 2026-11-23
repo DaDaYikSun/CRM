@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 깃 관리 규칙
+    url: https://github.com/DaDaYikSun/CRM/blob/main/CONTRIBUTING.md
+    about: 이슈 · 브랜치 · 커밋 · PR 규칙
