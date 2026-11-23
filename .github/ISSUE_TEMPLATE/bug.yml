@@ -1,0 +1,49 @@
+name: 버그
+description: 만든 기능이 기획 · 정책과 다르게 동작한다
+title: "[버그] "
+labels: ["fix"]
+body:
+  - type: input
+    id: refs
+    attributes:
+      label: 어긋난 기획 · 정책
+      placeholder: "POL-TGT-004 (전화 안 받음 → 다음 날 다시 대상)"
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: 화면 · 위치
+      placeholder: "S-04 연락 패널 / 배포 URL 또는 로컬"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 순서
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 결과 (기획 · 정책 기준)
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      description: 스크린샷이 있으면 붙인다. 실제 보호자 개인정보는 가린다
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 급한 정도
+      options: ["P1 (시연 시나리오가 막힘)", "P2", "P3"]
+    validations:
+      required: true

@@ -1,0 +1,31 @@
+name: 문서 · 설정
+description: 기획 · 설계 문서, 저장소 · 배포 설정, 기획에 없는 제안
+title: "[문서] "
+labels: ["docs"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 종류
+      options: ["기획 문서 수정", "설계 문서 (DB · API · 화면)", "저장소 · 배포 설정", "기획에 없는 제안 (논의 필요)", "문서끼리 어긋남"]
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: 대상 문서 · 파일
+      placeholder: "docs/planning/요구사항 명세서(2026-11-23).md 2-7"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 무엇을 왜
+      description: 결정판에서 팀이 정한 값을 바꾸는 내용이면 '논의 필요'로 올리고 팀 결정을 먼저 받는다
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: 문서 담당자 (리뷰어)
+      placeholder: "그 문서를 쓴 사람"

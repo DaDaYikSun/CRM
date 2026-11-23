@@ -1,0 +1,32 @@
+# 비밀값
+.env
+.env.*
+!.env.example
+**/application-local.yml
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Java / Spring / Gradle
+build/
+.gradle/
+target/
+*.class
+*.log
+
+# IDE · OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code 개인 설정 (스킬은 공유)
+.claude/settings.local.json
