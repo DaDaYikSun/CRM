@@ -1,6 +1,7 @@
 -- =====================================================================
 -- 동물병원 재방문 관리 CRM - DDL
--- 기준: DB 설계(2026-11-23).md 초안 v1, MySQL 8.0 (8.0.16 이상: CHECK 제약 동작)
+-- 기준: DB 설계(2026-11-23).md 초안 v2, MySQL 8.0 (8.0.16 이상: CHECK 제약 동작)
+-- v2: 문자 문구·리포트 양식 설정(FR-ADM-008·009) 반영, 테이블 17개
 -- 실행 순서: 이 파일 전체를 위에서 아래로 실행
 -- 주의: vaccine_rule 구조는 도메인 전문가 접종 규칙 표(11/27)를 받은 뒤 다시 맞춘다
 -- =====================================================================
@@ -42,7 +43,36 @@ CREATE TABLE setting (
   updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (setting_key),
   CONSTRAINT fk_setting_updated_by FOREIGN KEY (updated_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
-) ENGINE=InnoDB COMMENT='기준값 (누락 기준, 연락 보류 기간 등)';
+) ENGINE=InnoDB COMMENT='기준값·병원 정보 (누락 기준, 연락 보류 기간, 병원 이름·전화번호 등)';
+
+CREATE TABLE message_template (
+  template_code  ENUM('VACCINE','GROOMING') NOT NULL COMMENT '접종 안내 / 미용 안내 [정책 4-3]',
+  body           VARCHAR(1000) NOT NULL COMMENT '지금 쓰는 문구 (관리자가 수정) [FR-ADM-008]',
+  default_body   VARCHAR(1000) NOT NULL COMMENT '[기본 문구로 되돌리기]용 원래 문구',
+  updated_by     BIGINT        NULL,
+  updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (template_code),
+  CONSTRAINT ck_message_template_body CHECK (body LIKE '%{아이 이름}%' AND body LIKE '%{예정일}%'),
+  CONSTRAINT fk_message_template_updated_by FOREIGN KEY (updated_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='문자 안내 문구 [POL-CNT-005]';
+
+CREATE TABLE report_template (
+  report_template_id  TINYINT       NOT NULL DEFAULT 1 COMMENT '행 1개로 고정',
+  title               VARCHAR(50)   NOT NULL DEFAULT '아이 일정 요약' COMMENT '리포트 제목',
+  show_pet_info       TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '아이 정보',
+  show_next_due       TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '다음 예정일',
+  show_history        TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '지난 접종·미용',
+  show_guidance       TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '병원에서 드린 안내 (연락 기록 요약)',
+  history_months      SMALLINT      NULL DEFAULT 12 COMMENT '지난 이력 기간(개월), NULL = 전체',
+  footer_text         VARCHAR(300)  NULL COMMENT '아래 안내 문구',
+  updated_by          BIGINT        NULL,
+  updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (report_template_id),
+  CONSTRAINT ck_report_template_single  CHECK (report_template_id = 1),
+  CONSTRAINT ck_report_template_items   CHECK (show_pet_info + show_next_due + show_history + show_guidance >= 1),
+  CONSTRAINT ck_report_template_months  CHECK (history_months IS NULL OR history_months > 0),
+  CONSTRAINT fk_report_template_updated_by FOREIGN KEY (updated_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='리포트 양식 (진료 내용 칸은 일부러 없음) [POL-RPT-001·002]';
 
 -- ---------------------------------------------------------------------
 -- 2. 주기 계산 - 선택지·규칙
@@ -316,7 +346,8 @@ CREATE TABLE contact_log (
   result              ENUM('BOOKED','NO_ANSWER','REFUSED','OTHER_HOSPITAL','WRONG_NUMBER') NULL
                                     COMMENT '결과 유형 5가지, 문자 모의 발송만 했으면 NULL',
   is_mock_sms         TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '문자 모의 발송 [POL-CNT-005]',
-  sms_template        ENUM('VACCINE','GROOMING') NULL COMMENT '사용한 기본 문구',
+  sms_template        ENUM('VACCINE','GROOMING') NULL COMMENT '어느 문구를 썼는지',
+  sms_body            VARCHAR(1000) NULL COMMENT '실제로 보낸 문구 원문 (문구를 고쳐도 남음)',
   talked_with         ENUM('SELF','FAMILY') NULL COMMENT '통화한 사람',
   memo                VARCHAR(200)  NULL COMMENT '메모 200자 [POL-DATA-010]',
   next_contact_date   DATE          NULL COMMENT '입력한 다음 연락 예정일',
@@ -335,7 +366,7 @@ CREATE TABLE contact_log (
   KEY idx_contact_pet (pet_id, contacted_at),
   KEY idx_contact_stats (contacted_at, result, method),
   CONSTRAINT ck_contact_result    CHECK (method = 'SMS' OR result IS NOT NULL),
-  CONSTRAINT ck_contact_sms       CHECK (is_mock_sms = 0 OR method = 'SMS'),
+  CONSTRAINT ck_contact_sms       CHECK (is_mock_sms = 0 OR (method = 'SMS' AND sms_body IS NOT NULL)),
   CONSTRAINT ck_contact_converted CHECK (is_converted = (converted_visit_id IS NOT NULL)),
   CONSTRAINT fk_contact_guardian   FOREIGN KEY (guardian_id) REFERENCES guardian (guardian_id) ON DELETE RESTRICT,
   CONSTRAINT fk_contact_pet        FOREIGN KEY (pet_id) REFERENCES pet (pet_id) ON DELETE RESTRICT,
@@ -364,7 +395,7 @@ CREATE TABLE record_edit_log (
 
 CREATE TABLE rule_change_log (
   rule_change_log_id  BIGINT        NOT NULL AUTO_INCREMENT,
-  target_table        ENUM('VACCINE_TYPE','VACCINE_RULE','COAT_TYPE','BREED','SETTING') NOT NULL COMMENT '바뀐 규칙 종류',
+  target_table        ENUM('VACCINE_TYPE','VACCINE_RULE','COAT_TYPE','BREED','SETTING','MESSAGE_TEMPLATE','REPORT_TEMPLATE') NOT NULL COMMENT '바뀐 규칙·설정 종류',
   target_key          VARCHAR(50)   NOT NULL COMMENT '바뀐 행 ID 또는 setting_key',
   field_name          VARCHAR(50)   NOT NULL COMMENT '바뀐 컬럼',
   old_value           VARCHAR(200)  NULL,
@@ -390,6 +421,17 @@ INSERT INTO coat_type (code, name, default_groom_weeks, sort_order) VALUES
 INSERT INTO setting (setting_key, setting_value, value_type, description) VALUES
   ('MISS_THRESHOLD_DAYS', '14', 'INT',    '누락 기준: 예정일 + N일이 지나도 방문이 없으면 누락'),
   ('RAINBOW_HOLD_DAYS',   '30', 'INT',    '무지개다리 후 같은 집 다른 아이 연락 보류 기간(일)'),
-  ('HOSPITAL_NAME',       '다다익선 동물병원', 'STRING', '문자 안내 문구의 병원 이름 (시연용)'),
-  ('HOSPITAL_PHONE',      '0200000000', 'STRING', '문자 안내 문구의 병원 전화번호 (시연용, 실제로 쓰지 않는 번호)');
+  ('HOSPITAL_NAME',       '다다익선 동물병원', 'STRING', '병원 이름: 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 [FR-ADM-008]'),
+  ('HOSPITAL_PHONE',      '0200000000', 'STRING', '병원 전화번호(숫자만): 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 (시연용, 실제로 쓰지 않는 번호)');
 -- CRM_START_DATE(사용 전·후 비교 기준일)는 더미 데이터를 만들 때 넣는다 [FR-DATA-002]
+
+INSERT INTO message_template (template_code, body, default_body) VALUES
+  ('VACCINE',
+   '[{병원 이름}] {아이 이름}의 {접종 종류} 접종 예정일은 {예정일}입니다. 방문 전 {병원 전화번호}로 예약해 주세요.',
+   '[{병원 이름}] {아이 이름}의 {접종 종류} 접종 예정일은 {예정일}입니다. 방문 전 {병원 전화번호}로 예약해 주세요.'),
+  ('GROOMING',
+   '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.',
+   '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.');
+
+-- 리포트 양식 1행 (제목·기간은 임시값, 백오피스 프로토타입 기본값과 맞출 것)
+INSERT INTO report_template (report_template_id) VALUES (1);
