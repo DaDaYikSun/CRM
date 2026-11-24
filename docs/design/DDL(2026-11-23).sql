@@ -1,7 +1,10 @@
 -- =====================================================================
 -- 동물병원 재방문 관리 CRM - DDL
--- 기준: DB 설계(2026-11-23).md 초안 v2, MySQL 8.0 (8.0.16 이상: CHECK 제약 동작)
--- v2: 문자 문구·리포트 양식 설정(FR-ADM-008·009) 반영, 테이블 17개
+-- 기준: DB 설계(2026-11-23).md 초안 v3, MySQL 8.0 (8.0.16 이상: CHECK 제약 동작)
+-- v2: 문자 문구·리포트 양식 설정(FR-ADM-008·009) 반영
+-- v3: 테이블 합치기 17개 -> 14개
+--     이력 3개(record_edit_log, rule_change_log, pet_status_history) -> change_log
+--     guardian_tag -> guardian의 태그 칸
 -- 실행 순서: 이 파일 전체를 위에서 아래로 실행
 -- 주의: vaccine_rule 구조는 도메인 전문가 접종 규칙 표(11/27)를 받은 뒤 다시 맞춘다
 -- =====================================================================
@@ -172,6 +175,11 @@ CREATE TABLE guardian (
   privacy_agreed_at  DATETIME     NULL,
   sms_agreed         TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '안내 문자 수신 동의, 0이면 문자 버튼 끔',
   sms_agreed_at      DATETIME     NULL,
+  tag_no_contact     TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '주의 태그: 연락 원치 않음, 1이면 연락 대상에서 뺌 [POL-TGT-004]',
+  tag_sms_only       TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '주의 태그: 문자만',
+  tag_sensitive      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '주의 태그: 예민함',
+  tag_contact_time   TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '주의 태그: 연락 선호 시간',
+  contact_time_note  VARCHAR(50)  NULL COMMENT '연락 선호 시간 내용 (예: 오후 2시 이후)',
   created_by         BIGINT       NOT NULL,
   created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_by         BIGINT       NULL,
@@ -184,21 +192,10 @@ CREATE TABLE guardian (
   KEY idx_guardian_phone_status (phone_status),
   CONSTRAINT ck_guardian_phone     CHECK (phone REGEXP '^[0-9]{9,11}$'),
   CONSTRAINT ck_guardian_sub_phone CHECK (sub_phone IS NULL OR sub_phone REGEXP '^[0-9]{9,11}$'),
+  CONSTRAINT ck_guardian_contact_time CHECK (contact_time_note IS NULL OR tag_contact_time = 1),
   CONSTRAINT fk_guardian_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT,
   CONSTRAINT fk_guardian_updated_by FOREIGN KEY (updated_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
-) ENGINE=InnoDB COMMENT='보호자';
-
-CREATE TABLE guardian_tag (
-  guardian_id  BIGINT       NOT NULL,
-  tag          ENUM('CONTACT_TIME','NO_CONTACT','SMS_ONLY','SENSITIVE') NOT NULL COMMENT '연락 선호 시간/연락 원치 않음/문자만/예민함',
-  note         VARCHAR(50)  NULL COMMENT '태그 보충 (예: 오후 2시 이후)',
-  created_by   BIGINT       NOT NULL,
-  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (guardian_id, tag),
-  KEY idx_guardian_tag_tag (tag),
-  CONSTRAINT fk_guardian_tag_guardian   FOREIGN KEY (guardian_id) REFERENCES guardian (guardian_id) ON DELETE RESTRICT,
-  CONSTRAINT fk_guardian_tag_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
-) ENGINE=InnoDB COMMENT='주의 태그 (떼면 행 삭제)';
+) ENGINE=InnoDB COMMENT='보호자 (주의 태그 4가지 포함) [FR-CUS-005]';
 
 CREATE TABLE pet (
   pet_id                  BIGINT         NOT NULL AUTO_INCREMENT,
@@ -239,20 +236,6 @@ CREATE TABLE pet (
   CONSTRAINT fk_pet_created_by   FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT,
   CONSTRAINT fk_pet_updated_by   FOREIGN KEY (updated_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB COMMENT='반려동물';
-
-CREATE TABLE pet_status_history (
-  pet_status_history_id  BIGINT    NOT NULL AUTO_INCREMENT,
-  pet_id                 BIGINT    NOT NULL,
-  from_status            ENUM('ACTIVE','RAINBOW') NOT NULL,
-  to_status              ENUM('ACTIVE','RAINBOW') NOT NULL COMMENT 'RAINBOW -> ACTIVE = 되돌리기 (관리자만)',
-  created_by             BIGINT    NOT NULL,
-  created_at             DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (pet_status_history_id),
-  KEY idx_pet_status_history_pet (pet_id, created_at),
-  CONSTRAINT ck_pet_status_history_change CHECK (from_status <> to_status),
-  CONSTRAINT fk_pet_status_history_pet        FOREIGN KEY (pet_id) REFERENCES pet (pet_id) ON DELETE RESTRICT,
-  CONSTRAINT fk_pet_status_history_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
-) ENGINE=InnoDB COMMENT='반려동물 상태 이력 (추가만)';
 
 -- ---------------------------------------------------------------------
 -- 4. 방문 기록
@@ -380,32 +363,25 @@ CREATE TABLE contact_log (
 -- 7. 이력
 -- ---------------------------------------------------------------------
 
-CREATE TABLE record_edit_log (
-  record_edit_log_id  BIGINT    NOT NULL AUTO_INCREMENT,
-  target_type         ENUM('VISIT','CONTACT_LOG') NOT NULL COMMENT '고친 기록 종류',
-  target_id           BIGINT    NOT NULL COMMENT '고친 기록 ID',
-  before_json         JSON      NOT NULL COMMENT '고치기 전 값',
-  after_json          JSON      NOT NULL COMMENT '고친 뒤 값',
-  created_by          BIGINT    NOT NULL COMMENT '고친 직원',
-  created_at          DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (record_edit_log_id),
-  KEY idx_edit_target (target_type, target_id),
-  CONSTRAINT fk_edit_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
-) ENGINE=InnoDB COMMENT='기록 수정 이력 (추가만) [POL-DATA-006]';
-
-CREATE TABLE rule_change_log (
-  rule_change_log_id  BIGINT        NOT NULL AUTO_INCREMENT,
-  target_table        ENUM('VACCINE_TYPE','VACCINE_RULE','COAT_TYPE','BREED','SETTING','MESSAGE_TEMPLATE','REPORT_TEMPLATE') NOT NULL COMMENT '바뀐 규칙·설정 종류',
-  target_key          VARCHAR(50)   NOT NULL COMMENT '바뀐 행 ID 또는 setting_key',
-  field_name          VARCHAR(50)   NOT NULL COMMENT '바뀐 컬럼',
-  old_value           VARCHAR(1000) NULL COMMENT '바꾸기 전 값 (문자 문구 1000자까지 담음)',
-  new_value           VARCHAR(1000) NULL COMMENT '바꾼 값',
-  created_by          BIGINT        NOT NULL COMMENT '바꾼 직원',
-  created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (rule_change_log_id),
-  KEY idx_rule_change_target (target_table, created_at),
-  CONSTRAINT fk_rule_change_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
-) ENGINE=InnoDB COMMENT='규칙 변경 이력 (추가만) [FR-ADM-006]';
+-- 기록 수정, 규칙·설정 변경, 반려동물 상태 변경(무지개다리), 주의 태그 변경을 한 테이블에 쌓는다
+-- before_json / after_json에는 바뀐 칸만 넣는다. 예: {"status": "ACTIVE"} -> {"status": "RAINBOW"}
+CREATE TABLE change_log (
+  change_log_id  BIGINT       NOT NULL AUTO_INCREMENT,
+  category       ENUM('RECORD_EDIT','RULE_CHANGE','STATUS_CHANGE','TAG_CHANGE') NOT NULL
+                              COMMENT '기록 수정 [POL-DATA-006] / 규칙·설정 변경 [FR-ADM-006] / 아이 상태 변경 [POL-END-004] / 주의 태그 변경',
+  target_type    ENUM('VISIT','CONTACT_LOG','PET','GUARDIAN',
+                      'VACCINE_TYPE','VACCINE_RULE','COAT_TYPE','BREED',
+                      'SETTING','MESSAGE_TEMPLATE','REPORT_TEMPLATE') NOT NULL COMMENT '바뀐 대상 테이블',
+  target_id      VARCHAR(50)  NOT NULL COMMENT '바뀐 행의 ID, setting은 setting_key, 문구는 template_code',
+  before_json    JSON         NULL COMMENT '바꾸기 전 값 (바뀐 칸만)',
+  after_json     JSON         NOT NULL COMMENT '바꾼 뒤 값 (바뀐 칸만)',
+  created_by     BIGINT       NOT NULL COMMENT '바꾼 직원',
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (change_log_id),
+  KEY idx_change_target (target_type, target_id, created_at),
+  KEY idx_change_category (category, created_at),
+  CONSTRAINT fk_change_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
+) ENGINE=InnoDB COMMENT='변경 이력 (추가만, 수정·삭제 금지) [NFR-DATA-002]';
 
 -- =====================================================================
 -- 기본 데이터 (정책 정의서 6장에서 값이 정해진 것만)
