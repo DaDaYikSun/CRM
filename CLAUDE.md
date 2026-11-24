@@ -20,7 +20,7 @@
 
 ## ID
 
-- 요구사항 `FR-업무-번호`, 비기능 `NFR-종류-번호`, 정책 `POL-영역-번호`, 직원 화면 `S-01`~`S-11`, 백오피스 화면 `B-01`~`B-05`.
+- 요구사항 `FR-업무-번호`, 비기능 `NFR-종류-번호`, 정책 `POL-영역-번호`, 직원 화면 `S-01`~`S-11`, 백오피스 화면 `B-01`~`B-06`.
 - 업무 코드와 패키지 · 폴더가 1:1이다: AUTH→auth, CUS→customer, SRCH→search, VIS→visit, CYC→cycle, TGT→target, CNT→contact, DASH→dashboard, RPT→report, ADM→admin, COM→common, DATA→(seed 데이터).
 - 이슈, 커밋, PR, 코드 주석에서 이 ID를 그대로 쓴다. 새 ID를 만들지 않는다.
 
