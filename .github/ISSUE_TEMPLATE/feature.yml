@@ -1,0 +1,88 @@
+name: 기능
+description: 요구사항(FR) 하나 또는 화면 하나를 만든다
+title: "[FR-XXX-000] "
+labels: ["feat"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        기획 문서에 있는 기능만 이슈로 만든다. 기획에 없으면 '문서·설정' 템플릿으로 `논의 필요` 이슈를 올린다.
+        우선순위와 완료 조건은 요구사항 명세서·정책 정의서에서 그대로 가져온다.
+  - type: input
+    id: refs
+    attributes:
+      label: 기획 근거
+      description: 요구사항 · 정책 · 화면 ID
+      placeholder: "FR-CNT-001 → POL-TGT-006 → S-04"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위 (요구사항 명세서 그대로)
+      options: ["P1", "P2", "P3"]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      multiple: true
+      options: ["frontend", "backend", "db", "infra"]
+    validations:
+      required: true
+  - type: input
+    id: depends
+    attributes:
+      label: 선행 이슈
+      placeholder: "#3, #5 (없으면 비워 둠)"
+  - type: input
+    id: branch
+    attributes:
+      label: 브랜치
+      placeholder: "feat/12-contact-panel"
+  - type: textarea
+    id: scope
+    attributes:
+      label: 구현 범위
+      value: |
+        - 포함:
+        - 제외 (다른 이슈 / v2):
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: 담당 파일 · 화면
+      description: 이 이슈가 소유하는 파일·폴더. 다른 이슈와 겹치면 ⚠ 표시
+      placeholder: |
+        - frontend/src/app/(main)/targets/
+        - backend/.../contact/
+  - type: textarea
+    id: contract
+    attributes:
+      label: 다른 이슈와의 연결 (API · 함수)
+      placeholder: |
+        - 부르는 것: GET /api/targets?tab=today (#8)
+        - 제공하는 것: POST /api/contacts
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 조건
+      description: 요구사항 명세서 '확인 방법'과 정책 정의서에서 가져온다
+      value: |
+        - [ ]
+        - [ ] 화면에서 숨기는 것과 별개로 서버에서도 막는다 (권한이 있는 기능이면)
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: 테스트 항목
+      value: |
+        - 정상:
+        - 예외 (빈 입력, 권한 없음, 빈 목록, 저장 실패):
+  - type: textarea
+    id: open
+    attributes:
+      label: 남은 질문 [?]
