@@ -83,8 +83,8 @@ CREATE TABLE report_template (
 
 CREATE TABLE coat_type (
   coat_type_id         BIGINT       NOT NULL AUTO_INCREMENT,
-  code                 VARCHAR(20)  NOT NULL COMMENT 'SHORT / MEDIUM / LONG_CURLY',
-  name                 VARCHAR(20)  NOT NULL COMMENT '단모 / 중모 / 장모·곱슬',
+  code                 VARCHAR(20)  NOT NULL COMMENT 'SHORT / MEDIUM / LONG / CURLY',
+  name                 VARCHAR(20)  NOT NULL COMMENT '단모 / 중모 / 장모 / 곱슬',
   default_groom_weeks  TINYINT      NOT NULL COMMENT '미용 기본 간격(주) [POL-CYC-002]',
   sort_order           INT          NOT NULL DEFAULT 0,
   is_active            TINYINT(1)   NOT NULL DEFAULT 1,
@@ -390,9 +390,10 @@ CREATE TABLE change_log (
 -- =====================================================================
 
 INSERT INTO coat_type (code, name, default_groom_weeks, sort_order) VALUES
-  ('SHORT',      '단모',      10, 1),
-  ('MEDIUM',     '중모',       7, 2),
-  ('LONG_CURLY', '장모·곱슬',  5, 3);
+  ('SHORT',  '단모', 10, 1),
+  ('MEDIUM', '중모',  7, 2),
+  ('LONG',   '장모',  5, 3),
+  ('CURLY',  '곱슬',  5, 4);
 
 INSERT INTO setting (setting_key, setting_value, value_type, description) VALUES
   ('MISS_THRESHOLD_DAYS', '14', 'INT',    '누락 기준: 예정일 + N일이 지나도 방문이 없으면 누락'),
