@@ -157,6 +157,8 @@ GitHub → Settings → Branches → Add rule → `main`
 - 공통 파일은 추가만 했는가, 기존 내용을 바꿨는가
 - 비밀값, 개인정보, 실제 전화번호가 들어가지 않았는가
 
+PR을 열면 CodeRabbit(AI 리뷰)이 요약과 지적을 먼저 단다 (설정: `.coderabbit.yaml`). **참고용이다.** 지적이 맞으면 고치고, 아니면 댓글로 이유를 남긴다. 머지에 필요한 승인 1명은 사람이 한다. CodeRabbit에게 다시 보게 하려면 PR 댓글에 `@coderabbitai review`를 쓴다.
+
 ---
 
 ## 6. 폴더와 파일 규칙

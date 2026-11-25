@@ -1,0 +1,59 @@
+# CodeRabbit 설정 (#96)
+# 스키마: https://coderabbit.ai/integrations/schema.v2.json
+# AI 리뷰는 참고용이다. main 보호 규칙의 '승인 1명'은 사람이 한다 (CONTRIBUTING 5-3).
+language: "ko-KR"
+tone_instructions: "짧은 한국어 평서문으로 쓴다. 근거가 되는 파일과 줄, 기획 ID(FR · NFR · POL · 팀 결정 번호)를 함께 적는다."
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+  path_filters:
+    - "!**/package-lock.json"
+    - "!**/*.lock"
+    - "!**/images/**"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        이 저장소의 규칙은 CLAUDE.md와 CONTRIBUTING.md다. 다음을 확인한다.
+        - 기획에 없는 기능을 만들지 않았는가. 이슈 · 커밋 · 코드 주석에 FR · NFR · POL ID를 그대로 쓰고 새 ID를 만들지 않았는가.
+        - 정책 숫자(누락 14일, 보류 30일, 전화 안 받음 1일 뒤 등)와 화면 문구가 정책 정의서와 같은가. 숫자를 코드에 박지 않고 설정 테이블에서 읽는가.
+        - 비밀값, .env, 실제 보호자 개인정보가 없는가. 예시 전화번호는 010-0000-0000 형식인가.
+        - PR이 고친 문서의 담당자가 맞는가 (CONTRIBUTING 6-1 문서 담당 표). 아니면 담당자를 부르는 이슈로 돌려야 한다고 알린다.
+    - path: "docs/**"
+      instructions: |
+        기획 · 설계 문서다. 문장 다듬기보다 사실 확인을 한다.
+        - 문서 머리 표 '수정' 칸에 날짜와 고친 내용이 한 줄 있는가.
+        - 인용한 FR · POL · 팀 결정 번호가 실제 문서(요구사항 명세서, 정책 정의서, 팀 결정 기록)에 있는가.
+        - 다른 문서와 말이 다른 곳(숫자, 화면 ID, 결정)이 생기지 않았는가.
+        - 파일 이름이 `문서 이름(YYYY-MM-DD).md` 형식인가.
+    - path: "backend/**"
+      instructions: |
+        Spring Boot + MySQL 8.0, 패키지 com.dadayiksun.crm (팀 결정 K7).
+        - 권한은 서버에서도 검사하는가 (NFR-SEC-002). 화면에서 숨기는 것만으로 끝내지 않는다.
+        - 시간은 한국 시간(Asia/Seoul)이다. '오늘' · '이번 주(월~일)'를 DB CURDATE()나 서버 기본 시간대로 판단하지 않는가.
+        - DB 변경은 db/migration에 번호를 올린 새 파일로만 하는가. 이미 머지된 마이그레이션 파일을 고치지 않았는가.
+        - 테이블 · 컬럼 이름이 DB 설계 문서와 같은가.
+        - common 패키지 같은 공용 파일은 추가만 했는가.
+    - path: "frontend/**"
+      instructions: |
+        Next.js (App Router) + TypeScript.
+        - 컴포넌트 이름이 피그마 컴포넌트 이름과 같은가. 색 · 간격은 CSS 변수를 쓰고 hex를 직접 쓰지 않는가.
+        - 화면 문구는 정책 정의서 4장 문구 그대로인가.
+        - components/ui, components/layout 공용 파일은 추가만 했는가. 바꿨다면 PR에 이유가 있는가.
+        - 토큰을 localStorage 등 브라우저 저장소에 두지 않는가 (팀 결정 K2, 서버 세션).
+    - path: "**/db/migration/**"
+      instructions: |
+        이미 main에 머지된 마이그레이션 파일이 바뀌었으면 반드시 지적한다. 새 변경은 번호를 올린 새 파일이어야 한다.
+
+chat:
+  auto_reply: true
