@@ -7,7 +7,6 @@
 --     guardian_tag -> guardian의 태그 칸
 -- 2026-11-25: schedule.missed_at 뺌 (팀 결정 K3) (#57)
 -- 2026-11-25: schedule.missed_at · idx_schedule_missed 되살림 (11/25 회의 R1 · R9: 누락은 판정할 때 저장) (#89)
---             gap_days 주석을 DATEDIFF로 (#81)
 -- 실행 순서: 이 파일 전체를 위에서 아래로 실행
 -- 주의: vaccine_rule 구조는 도메인 전문가 접종 규칙 표(11/27)를 받은 뒤 다시 맞춘다
 -- =====================================================================
@@ -284,7 +283,7 @@ CREATE TABLE schedule (
   miss_threshold_days  SMALLINT  NOT NULL COMMENT '만들 때 설정값 복사, 지난 판정 고정 [POL-CYC-005]',
   done_visit_id        BIGINT    NULL COMMENT '이 주기를 완료시킨 방문',
   done_date            DATE      NULL COMMENT '완료 방문일',
-  gap_days             INT       NULL COMMENT 'DATEDIFF(done_date, due_date)',
+  gap_days             INT       NULL COMMENT 'done_date - due_date',
   missed_at            DATE      NULL COMMENT '누락 판정일, 완료돼도 지우지 않음 [11/25 회의 R1, POL-MISS-001]',
   contact_state        ENUM('NONE','NO_ANSWER','BOOKED','REFUSED','OTHER_HOSPITAL','WRONG_NUMBER','CLOSED')
                                  NOT NULL DEFAULT 'NONE' COMMENT '이 주기의 마지막 연락 결과 (대상 제외 판단) [POL-TGT-005~009]',
