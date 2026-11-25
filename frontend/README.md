@@ -15,11 +15,13 @@ frontend/
 │  │  │  ├─ pets/[id]/             S-07 아이 상세 (+ S-09 방문 기록 모달)
 │  │  │  ├─ register/              S-08 보호자·아이 등록
 │  │  │  ├─ grooming/              S-11 미용 탭 (미용사는 여기만)
-│  │  │  └─ admin/                 백오피스 (관리자만)
+│  │  │  └─ admin/                 백오피스 (관리자만, 탭 6개 = 팀 결정 T8)
 │  │  │     ├─ staff/              B-01 직원 관리
 │  │  │     ├─ rules/              B-02 주기 규칙
-│  │  │     ├─ settings/           B-03 기준값 · 선택지 · 문자 양식
-│  │  │     └─ history/            B-05 규칙 변경 이력
+│  │  │     ├─ settings/           B-03 기준값 · 선택지
+│  │  │     ├─ message-templates/  B-04 문자 문구 · 병원 정보
+│  │  │     ├─ report-template/    B-05 리포트 양식
+│  │  │     └─ history/            B-06 변경 이력 (설정 변경 이력, FR-ADM-006)
 │  │  └─ report/[petId]/           S-10 일정 요약 리포트 (새 탭, A4)
 │  ├─ components/
 │  │  ├─ ui/                       피그마 02 Components와 같은 이름 (Button, Badge, CautionTag, ResultButton …)
