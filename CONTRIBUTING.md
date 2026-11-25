@@ -157,6 +157,8 @@ GitHub → Settings → Branches → Add rule → `main`
 - 공통 파일은 추가만 했는가, 기존 내용을 바꿨는가
 - 비밀값, 개인정보, 실제 전화번호가 들어가지 않았는가
 
+main을 대상으로 draft가 아닌 PR을 열면 CodeRabbit(AI 리뷰, 조직에 설치된 GitHub 앱)이 요약과 지적을 먼저 단다 (설정: `.coderabbit.yaml`). draft PR은 'Ready for review'로 바꿀 때 리뷰한다. **참고용이다.** 지적이 맞으면 고치고, 아니면 댓글로 이유를 남긴 뒤 스레드를 Resolve 한다 (대화가 남아 있으면 머지가 막힌다). 머지에 필요한 승인 1명은 사람이 한다. 새 커밋을 올리면 CodeRabbit이 바뀐 부분만 다시 본다. 자동 리뷰가 멈췄을 때는 PR 댓글에 `@coderabbitai review`, 이미 본 변경까지 처음부터 다시 보게 하려면 `@coderabbitai full review`를 쓴다.
+
 ---
 
 ## 6. 폴더와 파일 규칙
