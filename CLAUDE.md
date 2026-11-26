@@ -60,4 +60,11 @@
 
 ## 명령어
 
-코드 스캐폴딩(#01 공통 기반) 뒤에 채운다. (예: `cd frontend && npm run dev`, `cd backend && ./gradlew test`)
+| 할 일 | 명령 |
+| --- | --- |
+| 백엔드 실행 | `cd backend && ./gradlew bootRun` (먼저 `.env.example`을 `.env`로 복사해 DB · 시드 계정 비밀번호를 채움) |
+| 백엔드 테스트 | `cd backend && ./gradlew test` |
+| 프론트 실행 | `cd frontend && npm install && npm run dev` (먼저 `.env.example`을 `.env.local`로 복사) |
+| 프론트 빌드 · 검사 · 테스트 | `cd frontend && npm run build`, `npm run lint`, `npm test` |
+
+DB 변경은 `backend/src/main/resources/db/migration/`에 `V3__…sql`부터 번호를 올려 더한다. 공통 장치(공통 응답 · 오류 · 페이지 · 한국 시간 · 감사 컬럼 · 설정값 · CSRF · 저장 두 번 막기) 쓰는 법은 `backend/README.md`, 화면 쪽은 `frontend/README.md`.
