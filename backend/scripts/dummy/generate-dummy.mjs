@@ -11,6 +11,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seedInt, seedSetting } from './seed-settings.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(HERE, '../../src/main/resources/db/dummy');
@@ -20,7 +21,10 @@ const OUT_DIR = resolve(HERE, '../../src/main/resources/db/dummy');
 // ---------------------------------------------------------------------
 const SEED = 20261126;
 const START = '2025-06-01';           // 데이터 기간 시작 (매뉴얼 2장)
-const CRM_START = '2026-06-01';       // CRM 도입일 (매뉴얼 3-4, setting.CRM_START_DATE)
+const CRM_START = seedSetting('CRM_START_DATE'); // CRM 도입일 (매뉴얼 3-4, V2 기본 데이터)
+// 정책 기준값은 기본 데이터(setting)에서 읽는다 (CLAUDE.md 3번)
+const MISS_THRESHOLD_DAYS = seedInt('MISS_THRESHOLD_DAYS'); // 누락 기준 (POL-MISS-001)
+const RAINBOW_HOLD_DAYS = seedInt('RAINBOW_HOLD_DAYS');     // 무지개다리 같은 집 보류 (POL-TGT-003)
 const END = '2026-11-25';             // 데이터 마지막 날 (오늘 전날까지, 미래 기록 없음)
 const OWNER_COUNT = 300;
 const HOSPITAL_NAME = '다다익선 동물병원';   // V2 기본 데이터 setting.HOSPITAL_NAME
@@ -259,7 +263,7 @@ for (const p of [...inMulti, ...single]) {
   p._rainbow = at;
   rainbowPets.push(p);
   if (multiOwners.has(p.guardian_id)) {
-    const holdUntil = addDays(at, 30); // RAINBOW_HOLD_DAYS 30 (POL-TGT-003)
+    const holdUntil = addDays(at, RAINBOW_HOLD_DAYS); // POL-TGT-003
     for (const s of pets.filter((x) => x.guardian_id === p.guardian_id && x !== p)) {
       (s._holds ??= []).push({ from: at, until: holdUntil }); // 생성 중에는 보류 기간을 늘 기억한다
       if (!before(holdUntil, END)) { s.contact_hold_until = holdUntil; s.contact_hold_by_pet_id = p.pet_id; } // CSV에는 END에 아직 걸린 보류만
@@ -285,7 +289,7 @@ const contacts = [];
 const alive = (p, d) => !p._rainbow || before(d, p._rainbow);
 const inData = (d) => !before(d, START) && !before(END, d);
 const canContact = (o) => !o.tag_no_contact;
-/** 같은 집 아이가 무지개다리를 건넌 날부터 보류 끝날(포함)까지는 연락하지 않는다 (POL-TGT-003, 30일) */
+/** 같은 집 아이가 무지개다리를 건넌 날부터 보류 끝날(포함)까지는 연락하지 않는다 (POL-TGT-003, RAINBOW_HOLD_DAYS) */
 const onHold = (p, d) => (p._holds ?? []).some((h) => !before(d, h.from) && !before(h.until, d));
 
 function addVaccination(p, code, d) {
@@ -388,8 +392,8 @@ function outcome(p, service, code, due, missBase) {
   if (p._groom === 'REGULAR' && service === 'VACCINE') missRate *= REGULAR_GROOMER_MISS_FACTOR;
   const r = rnd();
   let visit;
-  if (r < missRate) visit = chance(0.55) ? addDays(due, randInt(15, 90)) : null; // 누락 (늦게 오거나 안 옴)
-  else if (r < missRate + LATE_WITHIN_RATE) visit = addDays(due, randInt(1, 14)); // 늦었지만 14일 안
+  if (r < missRate) visit = chance(0.55) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 1, 90)) : null; // 누락 (늦게 오거나 안 옴)
+  else if (r < missRate + LATE_WITHIN_RATE) visit = addDays(due, randInt(1, MISS_THRESHOLD_DAYS)); // 늦었지만 기준 안
   else visit = addDays(due, randInt(-7, 0)); // 제때
 
   // 도입 뒤: 예정일까지 안 왔으면 데스크가 연락 (오늘 탭)
@@ -398,15 +402,15 @@ function outcome(p, service, code, due, missBase) {
     const day = addDays(due, randInt(0, 2));
     if (!before(END, day) && !onHold(p, day)) {
       const conv = contactFor(p, service, code, due, day);
-      if (chance(conv)) visit = addDays(day, randInt(1, Math.max(1, Math.min(12, diffDays(day, addDays(due, 14))))));
-      else if (visit !== null && !before(addDays(due, 14), visit)) visit = chance(0.5) ? addDays(due, randInt(15, 60)) : null;
+      if (chance(conv)) visit = addDays(day, randInt(1, Math.max(1, Math.min(12, diffDays(day, addDays(due, MISS_THRESHOLD_DAYS))))));
+      else if (visit !== null && !before(addDays(due, MISS_THRESHOLD_DAYS), visit)) visit = chance(0.5) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 1, 60)) : null;
     }
   } else if (after && !notYet && canContact(p._owner) && inData(due) && chance(CONTACT_THIS_WEEK_SHARE)) {
     // 도입 뒤: 이번 주 탭 — 예정일 전에 미리 연락 (예정일까지 아직 안 온 아이)
     const day = addDays(due, -randInt(1, 5));
     if (inData(day) && before(day, visit) && !onHold(p, day)) {
       const conv = contactFor(p, service, code, due, day);
-      if (!chance(conv)) visit = chance(0.6) ? addDays(due, randInt(15, 60)) : null; // 거절 · 다른 병원 등은 안 옴
+      if (!chance(conv)) visit = chance(0.6) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 1, 60)) : null; // 거절 · 다른 병원 등은 안 옴
     }
   } else if (!after && notYet && canContact(p._owner) && chance(0.03) && inData(due)) {
     const day = addDays(due, randInt(0, 3));

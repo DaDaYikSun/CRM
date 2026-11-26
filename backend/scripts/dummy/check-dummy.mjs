@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { seedInt, seedSetting } from './seed-settings.mjs';
 
 const DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/main/resources/db/dummy');
 
@@ -40,7 +41,8 @@ const results = [];
 const check = (name, ok, detail = '') => results.push({ name, ok, detail });
 const pct = (a, b) => `${((a / b) * 100).toFixed(1)}%`;
 const between = (v, lo, hi) => v >= lo && v <= hi;
-const END = '2026-11-25', START_BASE = '2024-07-01', CRM = '2026-06-01';
+const END = '2026-11-25', START_BASE = '2024-07-01', CRM = seedSetting('CRM_START_DATE');
+const RAINBOW_HOLD_DAYS = seedInt('RAINBOW_HOLD_DAYS'); // POL-TGT-003, 기본 데이터 setting
 
 // ---- 양 (매뉴얼 2장 · 5장)
 check('보호자 300명 안팎', between(owners.length, 280, 320), `${owners.length}`);
@@ -146,10 +148,10 @@ check('생년월일 전 · 무지개다리 뒤 · 미래 기록 없음', bad.len
 const early = [...vac, ...gro].filter((r) => dateOf(r) < START_BASE).length;
 check('기록은 기간 직전 기준 접종부터 (2024-07-01 이후)', early === 0, `${early}건`);
 
-// ---- 무지개다리 보류 (POL-TGT-003): 같은 집 아이는 건넌 날부터 30일 동안 연락하지 않는다
+// ---- 무지개다리 보류 (POL-TGT-003): 같은 집 아이는 건넌 날부터 RAINBOW_HOLD_DAYS일 동안 연락하지 않는다
 const holdHit = con.filter((c) => rainbow.some((r) => r.guardian_id === c.guardian_id && r.pet_id !== c.pet_id
   && c.contacted_at.slice(0, 10) >= r.rainbow_at.slice(0, 10)
-  && c.contacted_at.slice(0, 10) <= new Date(Date.parse(r.rainbow_at.slice(0, 10)) + 30 * 864e5).toISOString().slice(0, 10))).length;
+  && c.contacted_at.slice(0, 10) <= new Date(Date.parse(r.rainbow_at.slice(0, 10)) + RAINBOW_HOLD_DAYS * 864e5).toISOString().slice(0, 10))).length;
 check('무지개다리 보류 기간 안에 같은 집 아이 연락 없음', holdHit === 0, `${holdHit}건`);
 
 // ---- FK
