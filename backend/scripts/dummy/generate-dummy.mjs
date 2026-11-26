@@ -260,7 +260,8 @@ for (const p of [...inMulti, ...single]) {
   if (multiOwners.has(p.guardian_id)) {
     const holdUntil = addDays(at, 30); // RAINBOW_HOLD_DAYS 30 (POL-TGT-003)
     for (const s of pets.filter((x) => x.guardian_id === p.guardian_id && x !== p)) {
-      if (!before(holdUntil, END)) { s.contact_hold_until = holdUntil; s.contact_hold_by_pet_id = p.pet_id; }
+      (s._holds ??= []).push({ from: at, until: holdUntil }); // 생성 중에는 보류 기간을 늘 기억한다
+      if (!before(holdUntil, END)) { s.contact_hold_until = holdUntil; s.contact_hold_by_pet_id = p.pet_id; } // CSV에는 END에 아직 걸린 보류만
     }
   }
 }
@@ -283,6 +284,8 @@ const contacts = [];
 const alive = (p, d) => !p._rainbow || before(d, p._rainbow);
 const inData = (d) => !before(d, START) && !before(END, d);
 const canContact = (o) => !o.tag_no_contact;
+/** 같은 집 아이가 무지개다리를 건넌 날부터 보류 끝날(포함)까지는 연락하지 않는다 (POL-TGT-003, 30일) */
+const onHold = (p, d) => (p._holds ?? []).some((h) => !before(d, h.from) && !before(h.until, d));
 
 function addVaccination(p, code, d) {
   vaccinations.push({
@@ -352,7 +355,7 @@ function contactFor(p, service, code, due, day) {
     rows('PHONE', 'NO_ANSWER', day);
     // 다음 날 2일차 (POL-TGT-006, 매뉴얼 3-3: 2일차까지만)
     const d2 = addDays(day, 1);
-    if (before(END, d2)) return 0;
+    if (before(END, d2) || onHold(p, d2)) return 0;
     const follow = o.sms_agreed && chance(0.5) ? 'SMS' : 'PHONE';
     const groupId2 = uuid();
     const r2 = follow === 'PHONE' ? (chance(0.6) ? 'NO_ANSWER' : 'BOOKED') : null;
@@ -390,22 +393,23 @@ function outcome(p, service, code, due, missBase) {
 
   // 도입 뒤: 예정일까지 안 왔으면 데스크가 연락 (오늘 탭)
   const notYet = visit === null || before(due, visit);
-  if (after && notYet && canContact(p._owner) && !p.contact_hold_until && inData(due) && before(due, END)) {
+  if (after && notYet && canContact(p._owner) && inData(due) && before(due, END)) {
     const day = addDays(due, randInt(0, 2));
-    if (!before(END, day)) {
+    if (!before(END, day) && !onHold(p, day)) {
       const conv = contactFor(p, service, code, due, day);
       if (chance(conv)) visit = addDays(day, randInt(1, Math.max(1, Math.min(12, diffDays(day, addDays(due, 14))))));
       else if (visit !== null && !before(addDays(due, 14), visit)) visit = chance(0.5) ? addDays(due, randInt(15, 60)) : null;
     }
-  } else if (after && !notYet && canContact(p._owner) && !p.contact_hold_until && inData(due) && chance(CONTACT_THIS_WEEK_SHARE)) {
+  } else if (after && !notYet && canContact(p._owner) && inData(due) && chance(CONTACT_THIS_WEEK_SHARE)) {
     // 도입 뒤: 이번 주 탭 — 예정일 전에 미리 연락 (예정일까지 아직 안 온 아이)
     const day = addDays(due, -randInt(1, 5));
-    if (inData(day) && before(day, visit)) {
+    if (inData(day) && before(day, visit) && !onHold(p, day)) {
       const conv = contactFor(p, service, code, due, day);
       if (!chance(conv)) visit = chance(0.6) ? addDays(due, randInt(15, 60)) : null; // 거절 · 다른 병원 등은 안 옴
     }
   } else if (!after && notYet && canContact(p._owner) && chance(0.03) && inData(due)) {
-    contactFor(p, service, code, due, addDays(due, randInt(0, 3))); // 도입 전: 연락 기록이 거의 없음
+    const day = addDays(due, randInt(0, 3));
+    if (!onHold(p, day)) contactFor(p, service, code, due, day); // 도입 전: 연락 기록이 거의 없음
   }
   if (visit && (before(END, visit) || !alive(p, visit))) return null;
   return visit;

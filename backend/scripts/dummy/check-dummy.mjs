@@ -142,6 +142,12 @@ check('생년월일 전 · 무지개다리 뒤 · 미래 기록 없음', bad.len
 const early = [...vac, ...gro].filter((r) => dateOf(r) < START_BASE).length;
 check('기록은 기간 직전 기준 접종부터 (2024-07-01 이후)', early === 0, `${early}건`);
 
+// ---- 무지개다리 보류 (POL-TGT-003): 같은 집 아이는 건넌 날부터 30일 동안 연락하지 않는다
+const holdHit = con.filter((c) => rainbow.some((r) => r.guardian_id === c.guardian_id && r.pet_id !== c.pet_id
+  && c.contacted_at.slice(0, 10) >= r.rainbow_at.slice(0, 10)
+  && c.contacted_at.slice(0, 10) <= new Date(Date.parse(r.rainbow_at.slice(0, 10)) + 30 * 864e5).toISOString().slice(0, 10))).length;
+check('무지개다리 보류 기간 안에 같은 집 아이 연락 없음', holdHit === 0, `${holdHit}건`);
+
 // ---- FK
 const ownerIds = new Set(owners.map((o) => o.guardian_id));
 const loginIds = new Set(staff.map((s) => s.login_id));
