@@ -388,36 +388,6 @@ CREATE TABLE change_log (
   CONSTRAINT fk_change_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB COMMENT='변경 이력 (추가만, 수정·삭제 금지) [NFR-DATA-002]';
 
--- =====================================================================
--- 기본 데이터 (정책 정의서 6장에서 값이 정해진 것만)
--- 직원 계정·품종·접종 종류·접종 규칙은 시드 스크립트에서 넣는다
---   (계정 비밀번호는 환경 변수, 접종 값은 접종 규칙 표 · K9)
--- =====================================================================
-
-INSERT INTO coat_type (code, name, default_groom_weeks, sort_order) VALUES
-  ('SHORT',  '단모', 10, 1),
-  ('MEDIUM', '중모',  7, 2),
-  ('LONG',   '장모',  5, 3),
-  ('CURLY',  '곱슬',  5, 4);
-
-INSERT INTO setting (setting_key, setting_value, value_type, description) VALUES
-  ('MISS_THRESHOLD_DAYS', '14', 'INT',    '누락 기준: 예정일 + N일이 지나도 방문이 없으면 누락'),
-  ('RAINBOW_HOLD_DAYS',   '30', 'INT',    '무지개다리 후 같은 집 다른 아이 연락 보류 기간(일)'),
-  ('HOSPITAL_NAME',       '다다익선 동물병원', 'STRING', '병원 이름: 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 [FR-ADM-008]'),
-  ('HOSPITAL_PHONE',      '0200000000', 'STRING', '병원 전화번호(숫자만): 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 (시연용, 실제로 쓰지 않는 번호)');
--- CRM_START_DATE(사용 전·후 비교 기준일)는 더미 데이터를 만들 때 넣는다 [FR-DATA-002]
-
-INSERT INTO message_template (template_code, body, default_body) VALUES
-  ('VACCINE',
-   '[{병원 이름}] {아이 이름}의 {접종 종류} 접종 예정일은 {예정일}입니다. 방문 전 {병원 전화번호}로 예약해 주세요.',
-   '[{병원 이름}] {아이 이름}의 {접종 종류} 접종 예정일은 {예정일}입니다. 방문 전 {병원 전화번호}로 예약해 주세요.'),
-  ('GROOMING',
-   '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.',
-   '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.');
-
--- 리포트 양식 1행 (제목 · 아래 안내 · 지난 이력 12개월은 컬럼 기본값 = 팀 결정 T5)
-INSERT INTO report_template (report_template_id) VALUES (1);
-
 -- ---------------------------------------------------------------------
 -- 8. 세션 (Spring Session JDBC, K19)
 -- Spring Session 공식 schema-mysql.sql 그대로 둔다.
@@ -449,3 +419,33 @@ CREATE TABLE SPRING_SESSION_ATTRIBUTES (
   CONSTRAINT SPRING_SESSION_ATTRIBUTES_FK FOREIGN KEY (SESSION_PRIMARY_ID)
     REFERENCES SPRING_SESSION (PRIMARY_ID) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+-- =====================================================================
+-- 기본 데이터 (정책 정의서 6장에서 값이 정해진 것만)
+-- 직원 계정·품종·접종 종류·접종 규칙은 시드 스크립트에서 넣는다
+--   (계정 비밀번호는 환경 변수, 접종 값은 접종 규칙 표 · K9)
+-- =====================================================================
+
+INSERT INTO coat_type (code, name, default_groom_weeks, sort_order) VALUES
+  ('SHORT',  '단모', 10, 1),
+  ('MEDIUM', '중모',  7, 2),
+  ('LONG',   '장모',  5, 3),
+  ('CURLY',  '곱슬',  5, 4);
+
+INSERT INTO setting (setting_key, setting_value, value_type, description) VALUES
+  ('MISS_THRESHOLD_DAYS', '14', 'INT',    '누락 기준: 예정일 + N일이 지나도 방문이 없으면 누락'),
+  ('RAINBOW_HOLD_DAYS',   '30', 'INT',    '무지개다리 후 같은 집 다른 아이 연락 보류 기간(일)'),
+  ('HOSPITAL_NAME',       '다다익선 동물병원', 'STRING', '병원 이름: 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 [FR-ADM-008]'),
+  ('HOSPITAL_PHONE',      '0200000000', 'STRING', '병원 전화번호(숫자만): 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 (시연용, 실제로 쓰지 않는 번호)');
+-- CRM_START_DATE(사용 전·후 비교 기준일)는 더미 데이터를 만들 때 넣는다 [FR-DATA-002]
+
+INSERT INTO message_template (template_code, body, default_body) VALUES
+  ('VACCINE',
+   '[{병원 이름}] {아이 이름}의 {접종 종류} 접종 예정일은 {예정일}입니다. 방문 전 {병원 전화번호}로 예약해 주세요.',
+   '[{병원 이름}] {아이 이름}의 {접종 종류} 접종 예정일은 {예정일}입니다. 방문 전 {병원 전화번호}로 예약해 주세요.'),
+  ('GROOMING',
+   '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.',
+   '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.');
+
+-- 리포트 양식 1행 (제목 · 아래 안내 · 지난 이력 12개월은 컬럼 기본값 = 팀 결정 T5)
+INSERT INTO report_template (report_template_id) VALUES (1);
