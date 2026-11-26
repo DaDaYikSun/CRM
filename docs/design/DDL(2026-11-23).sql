@@ -9,8 +9,8 @@
 -- 2026-11-25: gap_days 주석을 DATEDIFF로 (#81)
 -- 2026-11-25: schedule.missed_at · idx_schedule_missed 되살림 (11/25 회의 R1 · R9: 누락은 판정할 때 저장) (#89)
 -- 2026-11-25: missed_at 주석에 기준 안 방문이면 완료 때 지움을 적음 (#109)
+-- 2026-11-26: V1 전 정리 (#136). 리포트 양식 기본값을 T5로, DATE 기본값 (CURRENT_DATE) 뺌(앱이 한국 날짜를 넣음), 접종 규칙 확정 대기 표시 정리 (행 예시 · 미확정 값은 DB 설계 4-7)
 -- 실행 순서: 이 파일 전체를 위에서 아래로 실행
--- 주의: vaccine_rule 구조는 도메인 전문가 접종 규칙 표(11/27)를 받은 뒤 다시 맞춘다
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS vet_crm
@@ -65,13 +65,13 @@ CREATE TABLE message_template (
 
 CREATE TABLE report_template (
   report_template_id  TINYINT       NOT NULL DEFAULT 1 COMMENT '행 1개로 고정',
-  title               VARCHAR(50)   NOT NULL DEFAULT '아이 일정 요약' COMMENT '리포트 제목',
+  title               VARCHAR(50)   NOT NULL DEFAULT '{아이 이름}의 일정 요약' COMMENT '리포트 제목 [T5, POL-RPT-001]',
   show_pet_info       TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '아이 정보',
   show_next_due       TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '다음 예정일',
   show_history        TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '지난 접종·미용',
   show_guidance       TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '병원에서 드린 안내 (연락 기록 요약)',
   history_months      SMALLINT      NULL DEFAULT 12 COMMENT '지난 이력 기간(개월), NULL = 전체',
-  footer_text         VARCHAR(300)  NULL COMMENT '아래 안내 문구',
+  footer_text         VARCHAR(300)  NULL DEFAULT '진료 내용은 이 요약에 담지 않습니다. 예정일은 아이의 기록으로 계산한 날짜입니다.' COMMENT '아래 안내 문구 [T5, POL-RPT-001]',
   updated_by          BIGINT        NULL,
   updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (report_template_id),
@@ -159,7 +159,7 @@ CREATE TABLE vaccine_rule (
   CONSTRAINT fk_vaccine_rule_type       FOREIGN KEY (vaccine_type_id) REFERENCES vaccine_type (vaccine_type_id) ON DELETE RESTRICT,
   CONSTRAINT fk_vaccine_rule_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT,
   CONSTRAINT fk_vaccine_rule_updated_by FOREIGN KEY (updated_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
-) ENGINE=InnoDB COMMENT='접종 규칙 (구조 잠정, 11/27 확정)';
+) ENGINE=InnoDB COMMENT='접종 규칙 (나이 구간별 간격) [K9]';
 
 -- ---------------------------------------------------------------------
 -- 3. 고객 관리
@@ -174,7 +174,7 @@ CREATE TABLE guardian (
   sub_phone          VARCHAR(11)  NULL COMMENT '보조 연락처(가족)',
   preferred_contact  ENUM('PHONE','SMS') NULL COMMENT '선호 연락 방법',
   phone_status       ENUM('OK','WRONG') NOT NULL DEFAULT 'OK' COMMENT 'WRONG = 번호 오류 [FR-DASH-004]',
-  phone_checked_at   DATE         NOT NULL DEFAULT (CURRENT_DATE) COMMENT '번호 마지막 확인일, 1년 지나면 배너 [POL-REG-008]',
+  phone_checked_at   DATE         NOT NULL COMMENT '번호 마지막 확인일, 1년 지나면 배너. 앱이 한국 날짜로 넣음 (DB CURRENT_DATE 안 씀) [POL-REG-008]',
   privacy_agreed     TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '개인정보 수집·이용 동의 [POL-REG-010]',
   privacy_agreed_at  DATETIME     NULL,
   sms_agreed         TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '안내 문자 수신 동의, 0이면 문자 버튼 끔',
@@ -250,7 +250,7 @@ CREATE TABLE visit (
   pet_id            BIGINT        NOT NULL,
   service_type      ENUM('VACCINE','GROOMING') NOT NULL COMMENT '접종 / 미용',
   vaccine_type_id   BIGINT        NULL COMMENT '접종이면 필수, 미용이면 NULL',
-  visit_date        DATE          NOT NULL DEFAULT (CURRENT_DATE) COMMENT '방문일',
+  visit_date        DATE          NOT NULL COMMENT '방문일. 앱이 한국 날짜로 넣음 (DB CURRENT_DATE 안 씀)',
   memo              VARCHAR(200)  NULL COMMENT '메모 200자 [POL-DATA-010]',
   brought_by_phone  VARCHAR(11)   NULL COMMENT '데려온 가족 번호 (보호자 정보는 안 바꿈) [POL-REG-006]',
   is_edited         TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '1 = 수정됨 [POL-DATA-007]',
@@ -390,7 +390,7 @@ CREATE TABLE change_log (
 -- =====================================================================
 -- 기본 데이터 (정책 정의서 6장에서 값이 정해진 것만)
 -- 직원 계정·품종·접종 종류·접종 규칙은 시드 스크립트에서 넣는다
---   (계정 비밀번호는 환경 변수, 접종 값은 도메인 전문가 표 11/27)
+--   (계정 비밀번호는 환경 변수, 접종 값은 접종 규칙 표 · K9)
 -- =====================================================================
 
 INSERT INTO coat_type (code, name, default_groom_weeks, sort_order) VALUES
@@ -414,5 +414,5 @@ INSERT INTO message_template (template_code, body, default_body) VALUES
    '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.',
    '[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.');
 
--- 리포트 양식 1행 (제목·기간은 임시값, 백오피스 프로토타입 기본값과 맞출 것)
+-- 리포트 양식 1행 (제목 · 아래 안내 · 지난 이력 12개월은 컬럼 기본값 = 팀 결정 T5)
 INSERT INTO report_template (report_template_id) VALUES (1);
