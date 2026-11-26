@@ -22,7 +22,7 @@ CSV는 손으로 고치지 않는다. 값을 바꾸려면 생성 스크립트를
 | 파일 | 행 | 참조 |
 | --- | --- | --- |
 | `staff.csv` | 직원 5명 | `login_id`로 참조한다. 비밀번호는 없다. 적재기가 시연용 비밀번호를 넣는다. |
-| `owners.csv` | 보호자 | `guardian_id`는 CSV 안 번호(1부터). 적재 순서대로 넣으면 DB id와 같다. |
+| `owners.csv` | 보호자 | `guardian_id`는 CSV 안에서만 쓰는 번호(1부터)다. DB id와 같다고 보지 않는다. |
 | `pets.csv` | 반려견 | `breed_name`(품종 이름)과 `coat_type_code`로 기본 데이터를 찾는다. |
 | `vaccinations.csv` | 접종 · 예방 방문 | `vaccine_type_code`로 접종 종류를 찾는다. |
 | `groomings.csv` | 미용 방문 | |
@@ -34,7 +34,7 @@ CSV는 손으로 고치지 않는다. 값을 바꾸려면 생성 스크립트를
 
 ## 적재기가 할 일
 
-1. 직원 → 보호자 → 반려견 → 접종 · 미용 기록 순서로 넣는다.
+1. 직원 → 보호자 → 반려견 → 접종 · 미용 기록 순서로 넣는다. `guardian_id` · `pet_id`는 CSV 안 번호라, 넣을 때 DB가 준 id를 CSV 번호별로 기록해 두고 반려견 · 기록 · 연락의 참조를 그 id로 바꿔 넣는다. local · demo DB가 비어 있다고 가정하지 않는다 (이미 보호자가 있거나 자동 증가 번호가 진행됐을 수 있음).
 2. #144 규칙으로 예정 일정을 만들고, 기록 날짜 기준으로 누락 판정을 돌린다 (`missed_at` = 원래 판정일).
 3. 연락 기록은 `pet_id` · `service_type` · `vaccine_type_code`와 연락 시각으로 그때 열린 예정 일정을 찾아 `schedule_id`를 붙인다.
 4. `is_converted`는 #154 전환 판정 규칙으로 채운다.

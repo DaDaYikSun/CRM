@@ -15,3 +15,23 @@ export function seedSetting(key) {
 }
 
 export const seedInt = (key) => Number.parseInt(seedSetting(key), 10);
+
+/** 털 유형별 미용 기본 간격(일) = coat_type.default_groom_weeks × 7 (POL-CYC-002, DB 설계 4-5). */
+export function seedCoatGroomDays() {
+  const days = {};
+  const start = SQL.indexOf('INSERT INTO coat_type');
+  const block = start < 0 ? '' : SQL.slice(start, SQL.indexOf(';', start));
+  for (const m of block.matchAll(/\('([A-Z]+)',\s*'[^']*',\s*(\d+),\s*\d+\)/g)) {
+    days[m[1]] = Number.parseInt(m[2], 10) * 7;
+  }
+  for (const code of ['SHORT', 'MEDIUM', 'LONG', 'CURLY']) {
+    if (!days[code]) throw new Error(`기본 데이터에 털 유형 ${code}의 미용 기본 간격이 없다`);
+  }
+  return days;
+}
+
+/** 병원 전화번호를 문자 문구에 쓰는 모양으로 (숫자만 저장, 예: 0200000000 → 02-0000-0000). */
+export function formatPhone(digits) {
+  if (digits.startsWith('02')) return digits.replace(/^(02)(\d{3,4})(\d{4})$/, '$1-$2-$3');
+  return digits.replace(/^(\d{3})(\d{3,4})(\d{4})$/, '$1-$2-$3');
+}

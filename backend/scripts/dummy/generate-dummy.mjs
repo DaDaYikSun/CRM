@@ -11,7 +11,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { seedInt, seedSetting } from './seed-settings.mjs';
+import { formatPhone, seedCoatGroomDays, seedInt, seedSetting } from './seed-settings.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(HERE, '../../src/main/resources/db/dummy');
@@ -27,11 +27,11 @@ const MISS_THRESHOLD_DAYS = seedInt('MISS_THRESHOLD_DAYS'); // 누락 기준 (PO
 const RAINBOW_HOLD_DAYS = seedInt('RAINBOW_HOLD_DAYS');     // 무지개다리 같은 집 보류 (POL-TGT-003)
 const END = '2026-11-25';             // 데이터 마지막 날 (오늘 전날까지, 미래 기록 없음)
 const OWNER_COUNT = 300;
-const HOSPITAL_NAME = '다다익선 동물병원';   // V2 기본 데이터 setting.HOSPITAL_NAME
-const HOSPITAL_PHONE_TEXT = '02-0000-0000'; // V2 기본 데이터 setting.HOSPITAL_PHONE (시연용)
+const HOSPITAL_NAME = seedSetting('HOSPITAL_NAME');                     // V1 기본 데이터 setting (문자 문구에 씀)
+const HOSPITAL_PHONE_TEXT = formatPhone(seedSetting('HOSPITAL_PHONE')); // V1 기본 데이터 setting (시연용 번호)
 
-// 털 유형 기본 간격 (POL-CYC-002, coat_type 시드): 단모 10주, 중모 7주, 장모 · 곱슬 5주
-const COAT_DEFAULT_DAYS = { SHORT: 70, MEDIUM: 49, LONG: 35, CURLY: 35 };
+// 털 유형 기본 간격(일) = coat_type.default_groom_weeks × 7 (POL-CYC-002, V1 기본 데이터)
+const COAT_DEFAULT_DAYS = seedCoatGroomDays();
 
 // 접종 종류 (DB 설계 4-6 vaccine_type.code). 주요 접종: 종합백신 · 광견병 (#59)
 const VACCINE_NAME = {
