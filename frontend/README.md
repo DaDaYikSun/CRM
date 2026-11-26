@@ -1,6 +1,17 @@
 # frontend
 
-Next.js (App Router) + TypeScript. 아직 코드가 없고, 스캐폴딩 이슈(#01 공통 기반)에서 아래 구조로 만든다. 구조를 바꾸려면 이 파일을 같은 PR에서 고친다.
+Next.js 15 (App Router) + TypeScript. 구조를 바꾸려면 이 파일을 같은 PR에서 고친다.
+
+## 실행
+
+```bash
+cp .env.example .env.local   # API_BASE_URL = Spring 서버 주소 (커밋 금지)
+npm install
+npm run dev                  # http://localhost:3000, /api/*는 Spring으로 넘어간다 (next.config.ts rewrites)
+npm run build
+npm run lint
+npm test                     # vitest
+```
 
 ```
 frontend/
@@ -38,6 +49,10 @@ frontend/
 
 ## 규칙
 
+- 백엔드 호출은 `lib/api/client.ts`의 `api.get` · `api.post` · `api.put` · `api.patch`만 쓴다. 공통 응답 풀기, 조회 실패 한 번 자동 재시도(저장은 재시도 없음), CSRF 헤더, 저장 두 번 막기 키를 대신 해 준다 (POL-ERR-001 · 002, K10 · K15, `backend/README.md`).
+- 저장 폼은 `newIdempotencyKey()`로 폼 하나에 키 하나를 만들어 `{ idempotencyKey }`로 넘기고, 저장이 끝날 때까지 같은 키를 쓴다. 저장 중에는 `Button`의 `loading`으로 다시 누르지 못하게 한다.
+- 오류는 `ApiError`(`code`, `message`, `fields`)로 온다. `message`는 정책 4-2 문구라 그대로 보여 준다.
+- 날짜 · 전화번호는 `lib/utils/date.ts`(한국 시간, 이번 주 월~일) · `phone.ts`(숫자만)를 쓴다.
 - 컴포넌트 이름은 피그마 컴포넌트 이름과 같게 쓴다 (`TargetRow`, `StatCard`, `TimelineItem`).
 - 색 · 간격은 피그마 변수 이름을 CSS 변수로 옮겨 쓴다 (`--navy-900`, `--peri-500`, `--spacing-16`). hex를 직접 쓰지 않는다.
 - 화면 문구는 정책 정의서 4장 문구를 그대로 쓴다.
