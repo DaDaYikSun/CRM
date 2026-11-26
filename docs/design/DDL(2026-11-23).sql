@@ -10,6 +10,7 @@
 -- 2026-11-25: schedule.missed_at · idx_schedule_missed 되살림 (11/25 회의 R1 · R9: 누락은 판정할 때 저장) (#89)
 -- 2026-11-25: missed_at 주석에 기준 안 방문이면 완료 때 지움을 적음 (#109)
 -- 2026-11-26: V1 전 정리 (#136). 리포트 양식 기본값을 T5로, DATE 기본값 (CURRENT_DATE) 뺌(앱이 한국 날짜를 넣음), 접종 규칙 확정 대기 표시 정리 (행 예시 · 미확정 값은 DB 설계 4-7)
+-- 2026-11-26: 8. 세션 절 추가 - Spring Session JDBC 테이블 2개 (팀 결정 K19, #136)
 -- 2026-11-26: CRM_START_DATE는 V2 기본 데이터에 2026-06-01로 넣는다고 주석을 고침 (DB 설계 4-8)
 -- 실행 순서: 이 파일 전체를 위에서 아래로 실행
 -- =====================================================================
@@ -387,6 +388,38 @@ CREATE TABLE change_log (
   KEY idx_change_category (category, created_at),
   CONSTRAINT fk_change_created_by FOREIGN KEY (created_by) REFERENCES staff (staff_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB COMMENT='변경 이력 (추가만, 수정·삭제 금지) [NFR-DATA-002]';
+
+-- ---------------------------------------------------------------------
+-- 8. 세션 (Spring Session JDBC, K19)
+-- Spring Session 공식 schema-mysql.sql 그대로 둔다.
+-- 테이블 이름은 대문자 그대로 (Railway MySQL은 리눅스라 테이블 이름 대소문자를 구분, Spring Session 기본 이름과 같아야 함).
+-- 이름 · FK는 1장 원칙(snake_case 단수형, ON DELETE RESTRICT)의 예외다. 만료 세션 정리 때 속성 행이 같이 지워져야 해서 CASCADE를 둔다.
+-- 테이블은 Flyway(V1)가 만들고, 앱은 spring.session.jdbc.initialize-schema=never (#142).
+-- ---------------------------------------------------------------------
+
+CREATE TABLE SPRING_SESSION (
+  PRIMARY_ID            CHAR(36)     NOT NULL,
+  SESSION_ID            CHAR(36)     NOT NULL,
+  CREATION_TIME         BIGINT       NOT NULL,
+  LAST_ACCESS_TIME      BIGINT       NOT NULL,
+  MAX_INACTIVE_INTERVAL INT          NOT NULL,
+  EXPIRY_TIME           BIGINT       NOT NULL,
+  PRINCIPAL_NAME        VARCHAR(100) NULL,
+  CONSTRAINT SPRING_SESSION_PK PRIMARY KEY (PRIMARY_ID)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+CREATE UNIQUE INDEX SPRING_SESSION_IX1 ON SPRING_SESSION (SESSION_ID);
+CREATE INDEX SPRING_SESSION_IX2 ON SPRING_SESSION (EXPIRY_TIME);
+CREATE INDEX SPRING_SESSION_IX3 ON SPRING_SESSION (PRINCIPAL_NAME);
+
+CREATE TABLE SPRING_SESSION_ATTRIBUTES (
+  SESSION_PRIMARY_ID CHAR(36)     NOT NULL,
+  ATTRIBUTE_NAME     VARCHAR(200) NOT NULL,
+  ATTRIBUTE_BYTES    BLOB         NOT NULL,
+  CONSTRAINT SPRING_SESSION_ATTRIBUTES_PK PRIMARY KEY (SESSION_PRIMARY_ID, ATTRIBUTE_NAME),
+  CONSTRAINT SPRING_SESSION_ATTRIBUTES_FK FOREIGN KEY (SESSION_PRIMARY_ID)
+    REFERENCES SPRING_SESSION (PRIMARY_ID) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 
 -- =====================================================================
 -- 기본 데이터 (정책 정의서 6장에서 값이 정해진 것만)
