@@ -27,6 +27,7 @@ function parseCsv(text) {
   const [head, ...body] = rows;
   return body.map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])));
 }
+const SEED = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/main/resources/db/migration/V2__seed_base.sql');
 const load = (n) => parseCsv(readFileSync(resolve(DIR, n), 'utf8'));
 const staff = load('staff.csv');
 const owners = load('owners.csv');
@@ -62,6 +63,9 @@ const ENUM = {
   pref: ['', 'PHONE', 'SMS'],
 };
 check('역할 3가지 그대로', staff.every((s) => ENUM.role.includes(s.role)));
+const seedBreeds = new Set([...readFileSync(SEED, 'utf8').matchAll(/\('DOG', '([^']+)', \d+\)/g)].map((m) => m[1]));
+const unknownBreeds = [...new Set(pets.map((p) => p.breed_name))].filter((b) => !seedBreeds.has(b));
+check('품종 이름이 V2 기본 데이터 품종 표에 있음 (#142)', seedBreeds.size > 0 && unknownBreeds.length === 0, unknownBreeds.join(', ') || `${seedBreeds.size}개 중에서 씀`);
 check('털 유형 4가지 그대로', pets.every((p) => ENUM.coat.includes(p.coat_type_code)));
 check('결과 유형 5가지 그대로', con.every((c) => ENUM.result.includes(c.result)));
 check('연락 방법 그대로', con.every((c) => ENUM.method.includes(c.method)));
