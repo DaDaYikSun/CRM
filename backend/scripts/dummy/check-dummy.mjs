@@ -128,7 +128,11 @@ check('결과 유형 5가지가 모두 있음', ENUM.result.slice(1).every((r) =
   Object.entries(dist).map(([r, n]) => `${r} ${pct(n, withResult.length)}`).join(', '));
 const naFollow = con.filter((c) => c.memo === '2일차').length;
 check("'전화 안 받음' 다음 날 2일차 연락 있음", naFollow > 0, `${naFollow}건`);
-const multiGroup = Object.values(con.reduce((m, c) => ((m[c.contact_group_id] ??= new Set()).add(c.pet_id), m), {})).filter((s) => s.size >= 2).length;
+const groups = Object.values(con.reduce((m, c) => ((m[c.contact_group_id] ??= []).push(c), m), {}));
+const multiGroups = groups.filter((g) => new Set(g.map((c) => c.pet_id)).size >= 2);
+check('다두 가구 묶음 연락 (한 연락에 같은 집 아이 2마리 이상) 1건 이상 (매뉴얼 3-1 · 3-3)', multiGroups.length >= 1, `${multiGroups.length}묶음`);
+check('묶음 연락의 행은 같은 보호자 · 연락 시각 · 방법 · 결과', groups.every((g) => g.every((c) => c.guardian_id === g[0].guardian_id
+  && c.contacted_at === g[0].contacted_at && c.method === g[0].method && c.result === g[0].result)));
 check('문자 모의 발송은 문구 원문이 있음 (DB CHECK)', con.every((c) => c.is_mock_sms === '0' || (c.method === 'SMS' && c.sms_body !== '')));
 check('전화면 결과가 있음 (DB CHECK)', con.every((c) => c.method === 'SMS' || c.result !== ''));
 
@@ -170,5 +174,5 @@ for (const r of results) {
   if (!r.ok) fail++;
   console.log(`${r.ok ? 'OK  ' : 'FAIL'} ${r.name}${r.detail ? `  (${r.detail})` : ''}`);
 }
-console.log(`\n${results.length - fail}/${results.length} 통과 · 같은 집 묶음 연락 ${multiGroup}묶음`);
+console.log(`\n${results.length - fail}/${results.length} 통과`);
 process.exit(fail ? 1 : 0);

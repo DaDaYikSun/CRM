@@ -563,6 +563,32 @@ for (const o of owners.filter((x) => multiOwners.has(x.guardian_id))) {
   }
 }
 
+// 다두 가구 묶음 연락 (매뉴얼 3-1 · 3-3, FR-TGT-002, 가설 2): 도입 뒤 미용 전화 예약(BOOKED) 한 번에
+// 같은 집 다른 아이도 함께 묶고, 두 아이가 같은 날 미용을 받은 기록을 만든다.
+// 묶음 행은 같은 contact_group_id · 보호자 · 연락 시각 · 방법 · 결과를 쓴다 (DB 설계 contact_log 묶음).
+// 앞 단계의 무작위 순서를 바꾸지 않도록 마지막에 덧붙인다.
+const GROUP_CONTACT_SHARE = 0.6;
+const GROOM_CAP = 10; // 매뉴얼 2장: 아이마다 미용 10회 이하
+for (const o of owners.filter((x) => multiOwners.has(x.guardian_id) && canContact(x))) {
+  const kids = pets.filter((p) => p.guardian_id === o.guardian_id);
+  const booked = contacts.filter((c) => c.guardian_id === o.guardian_id && c.service_type === 'GROOMING' && c.method === 'PHONE'
+    && c.result === 'BOOKED' && !before(c.contacted_at.slice(0, 10), CRM_START));
+  if (!booked.length || !chance(GROUP_CONTACT_SHARE)) continue;
+  const c = pick(booked);
+  const day = c.contacted_at.slice(0, 10);
+  const a = kids.find((k) => k.pet_id === c.pet_id);
+  // 예약으로 온 날: 연락 뒤 기준(MISS_THRESHOLD_DAYS) 안의 첫 미용
+  const visit = groomings.filter((g) => g.pet_id === a.pet_id && before(day, g.visit_date)
+    && !before(addDays(day, MISS_THRESHOLD_DAYS), g.visit_date)).map((g) => g.visit_date).sort()[0];
+  if (!visit) continue;
+  const b = kids.find((k) => k !== a && k._groom && alive(k, visit) && !onHold(k, day) && !before(day, k.birth_date)
+    && groomings.filter((g) => g.pet_id === k.pet_id).length < GROOM_CAP
+    && !contacts.some((x) => x.contact_group_id === c.contact_group_id && x.pet_id === k.pet_id));
+  if (!b) continue;
+  contacts.push({ ...c, pet_id: b.pet_id });
+  if (!groomings.some((g) => g.pet_id === b.pet_id && g.visit_date === visit)) addGrooming(b, visit);
+}
+
 // 무지개다리 뒤 · 생년월일 전 기록은 지운다 (매뉴얼 4장)
 const petById = new Map(pets.map((p) => [p.pet_id, p]));
 const okDate = (r) => {
