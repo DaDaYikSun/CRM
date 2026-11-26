@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ApiError, createClient, LOAD_FAILED_MESSAGE } from "./client";
+import { ApiError, createClient, LOAD_FAILED_MESSAGE, SAVE_FAILED_MESSAGE } from "./client";
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -45,5 +45,23 @@ describe("client", () => {
     const saveCalls = fetcher.mock.calls.filter(([path]) => path === "/api/contacts");
     expect(saveCalls).toHaveLength(1);
     expect(saveCalls[0][1].headers["Idempotency-Key"]).toBe("key-1");
+  });
+
+  it("조회 중 네트워크 오류도 자동으로 한 번 다시 부른다", async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(json(200, { data: [] }));
+    await expect(createClient(fetcher).get("/api/targets")).resolves.toEqual([]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("저장 전 CSRF 쿠키를 못 받으면 저장 실패 ApiError로 알리고 저장하지 않는다", async () => {
+    const fetcher = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    const error = (await createClient(fetcher).post("/api/contacts", {}).catch((e) => e)) as ApiError;
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe("INTERNAL_ERROR");
+    expect(error.message).toBe(SAVE_FAILED_MESSAGE);
+    expect(fetcher.mock.calls.filter(([path]) => path === "/api/contacts")).toHaveLength(0);
   });
 });

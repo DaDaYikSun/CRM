@@ -12,6 +12,7 @@ public class ApiException extends RuntimeException {
     private final ErrorCode code;
     private final List<ErrorResponse.FieldError> fields;
 
+    /** 정해진 문구가 있는 코드만. VALIDATION_FAILED · INTERNAL_ERROR는 문구를 함께 넘긴다 (응답에서 message가 빠지지 않게). */
     public ApiException(ErrorCode code) {
         this(code, code.message(), List.of());
     }
@@ -22,6 +23,9 @@ public class ApiException extends RuntimeException {
 
     public ApiException(ErrorCode code, String message, List<ErrorResponse.FieldError> fields) {
         super(message);
+        if (message == null || message.isBlank()) {
+            throw new IllegalArgumentException(code + "는 정해진 문구가 없어 message를 넘겨야 한다 (C1 { code, message })");
+        }
         this.code = code;
         this.fields = fields;
     }

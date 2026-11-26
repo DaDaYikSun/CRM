@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -84,5 +85,36 @@ class IdempotencyFilterTest {
 
         send("POST", "/api/contacts", "key-9");
         assertThat(handled.get()).isEqualTo(2);
+    }
+
+    @Test
+    void 입력_오류_4xx는_기억하지_않아_고쳐서_같은_키로_다시_보내면_처리한다() throws Exception {
+        FilterChain invalid = (req, res) -> {
+            handled.incrementAndGet();
+            ((jakarta.servlet.http.HttpServletResponse) res).setStatus(400);
+        };
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/guardians");
+        request.setSession(session);
+        request.addHeader(IdempotencyFilter.HEADER, "key-4");
+        filter.doFilter(request, new MockHttpServletResponse(), invalid);
+
+        MockHttpServletResponse fixed = send("POST", "/api/guardians", "key-4");
+        assertThat(handled.get()).isEqualTo(2);
+        assertThat(fixed.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void 처음_요청이_끝나지_않으면_두_번째_요청은_저장하지_않고_저장_실패로_답한다() throws Exception {
+        IdempotencyStore store = new IdempotencyStore(Clock.systemUTC());
+        filter = new IdempotencyFilter(store, Duration.ofMillis(50));
+        // 처음 요청이 처리 중인 상태 (끝나지 않음)
+        store.claim(session.getId() + "|POST|/api/pets/1/visits|key-slow");
+
+        MockHttpServletResponse second = send("POST", "/api/pets/1/visits", "key-slow");
+
+        assertThat(handled.get()).isZero();
+        assertThat(second.getStatus()).isEqualTo(500);
+        assertThat(second.getContentAsString(StandardCharsets.UTF_8))
+                .contains("\"code\":\"INTERNAL_ERROR\"").contains("저장하지 못했습니다. 다시 시도해 주세요.");
     }
 }

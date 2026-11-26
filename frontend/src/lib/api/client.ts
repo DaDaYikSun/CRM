@@ -79,9 +79,9 @@ async function parse<T>(response: Response, method: Method): Promise<T> {
   );
 }
 
-/** 자동으로 한 번 다시 부를 실패인가 (네트워크 오류 · 서버 오류). 4xx는 다시 불러도 같으므로 다시 부르지 않는다 */
+/** 자동으로 한 번 다시 부를 실패인가 (네트워크 오류 status 0 · 서버 오류 5xx). 4xx는 다시 불러도 같으므로 다시 부르지 않는다 */
 function shouldRetryRead(error: unknown): boolean {
-  if (error instanceof ApiError) return error.status >= 500;
+  if (error instanceof ApiError) return error.status === 0 || error.status >= 500;
   return true;
 }
 
@@ -90,7 +90,13 @@ export function createClient(fetcher: typeof fetch = (...args) => fetch(...args)
     const headers: Record<string, string> = { Accept: "application/json" };
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (method !== "GET") {
-      const token = await csrfToken(fetcher);
+      let token: string | null;
+      try {
+        token = await csrfToken(fetcher);
+      } catch {
+        // CSRF 쿠키를 못 받음: 저장 실패와 같게 알린다 (POL-ERR-002). 자동으로 다시 부르지 않는다
+        throw new ApiError(0, "INTERNAL_ERROR", SAVE_FAILED_MESSAGE);
+      }
       if (token) headers[CSRF_HEADER] = token;
       headers[IDEMPOTENCY_HEADER] = options.idempotencyKey ?? newIdempotencyKey();
     }

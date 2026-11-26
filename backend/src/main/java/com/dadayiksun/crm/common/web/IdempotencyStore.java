@@ -63,7 +63,7 @@ public class IdempotencyStore {
         }
     }
 
-    /** 처리하지 못한 요청: 기다리던 요청이 새로 처리할 수 있게 키를 지운다. */
+    /** 처리하지 못했거나 오류로 끝난 요청: 기다리던 요청이 새로 처리할 수 있게 키를 지운다. */
     public void release(String key) {
         Entry entry = entries.remove(key);
         if (entry != null) {
