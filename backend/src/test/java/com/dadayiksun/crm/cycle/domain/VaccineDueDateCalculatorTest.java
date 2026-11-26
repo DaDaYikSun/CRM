@@ -165,6 +165,19 @@ class VaccineDueDateCalculatorTest {
         }
 
         @Test
+        void 횟수_행을_채우면_사이의_반복_행보다_남은_횟수_행이_먼저() {
+            // PR #190 CodeRabbit 예시: 횟수 행 · 반복 행 · 횟수 행 순서. 첫 행을 채우면 반복 행(30일)이 아니라
+            // 아직 채우지 않은 횟수 행(365일)의 간격을 쓴다 (DB 설계 4-7 규칙 2, K24)
+            List<VaccineRule> rules = List.of(
+                    new VaccineRule(PRIMARY, 30, null, 30, 1),
+                    new VaccineRule(BOOSTER, 60, 365, 30, null),
+                    new VaccineRule(BOOSTER, 365, null, 365, 1));
+            assertThat(VaccineDueDateCalculator.nextDueDate(BIRTH, rules,
+                    List.of(LocalDate.of(2025, 1, 31))))             // 생후 30일
+                    .contains(LocalDate.of(2026, 1, 31));             // + 365일
+        }
+
+        @Test
         void 횟수_행을_다_채우고_다음_행이_없으면_더_예정하지_않는다() {
             List<VaccineRule> once = List.of(new VaccineRule(PRIMARY, 30, null, 30, 1));
             assertThat(VaccineDueDateCalculator.nextDueDate(BIRTH, once,

@@ -16,8 +16,9 @@ import java.util.Optional;
  *   <li>첫 예정일 = 생년월일 + 첫 행(`age_from_days`가 가장 작은 행)의 `age_from_days`.</li>
  *   <li>접종을 기록하면 행을 `age_from_days` 순으로 보고, `dose_count`를 아직 다 채우지 않은
  *       첫 행을 아이 나이와 상관없이 쓴다 (횟수 우선, 팀 결정 K24).</li>
- *   <li>다음 예정일 = 접종일 + 그 행 `interval_days`. 이번 접종으로 그 행 횟수를 다 채웠으면 다음 행의
- *       `interval_days`를 쓴다. `dose_count`가 있는 행을 모두 채웠으면(또는 그런 행이 없으면) 접종 때
+ *   <li>다음 예정일 = 접종일 + 그 행 `interval_days`. 이번 접종으로 그 행 횟수를 다 채웠으면 다음에 쓸 행의
+ *       `interval_days`를 쓴다: 뒤에 아직 채우지 않은 횟수 행이 있으면 그 행(사이의 반복 행은 건너뜀),
+ *       없으면 바로 다음 행. `dose_count`가 있는 행을 모두 채웠으면(또는 그런 행이 없으면) 접종 때
  *       아이 나이가 속한 행(`dose_count` 없는 행)의 간격을 쓰고, 어느 행보다 어리면 첫 행으로 본다.</li>
  * </ol>
  */
@@ -71,10 +72,18 @@ public final class VaccineDueDateCalculator {
                 return Optional.of(lastDose.plusDays(row.intervalDays()));
             }
             if (remaining == row.doseCount()) {
+                // 이번 접종으로 이 행을 다 채움: 다음에 쓸 행의 간격.
+                // 뒤에 아직 채우지 않은 횟수 행이 있으면 그 행이 먼저다 (K24 횟수 우선). 반복 행이 사이에 있어도 건너뛴다.
+                for (int j = i + 1; j < sorted.size(); j++) {
+                    if (sorted.get(j).hasDoseCount()) {
+                        return Optional.of(lastDose.plusDays(sorted.get(j).intervalDays()));
+                    }
+                }
+                // 남은 횟수 행이 없으면 바로 다음 행 (예: 광견병 기초 1회 → 추가접종 행 간격)
                 if (i + 1 < sorted.size()) {
                     return Optional.of(lastDose.plusDays(sorted.get(i + 1).intervalDays()));
                 }
-                return Optional.empty();
+                break; // 마지막 행: 아래 반복 행 규칙으로 (반복 행이 없으면 더 맞을 접종 없음)
             }
             remaining -= row.doseCount();
         }
