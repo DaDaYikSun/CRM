@@ -6,9 +6,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Set;
 
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
+
+import com.dadayiksun.crm.common.error.ErrorCode;
+import com.dadayiksun.crm.common.response.ErrorResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -35,9 +40,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     public static final String HEADER = "Idempotency-Key";
     private static final Set<String> SAVE_METHODS = Set.of("POST", "PUT", "PATCH");
     private static final Duration WAIT = Duration.ofSeconds(10);
-    /** 처음 요청이 끝나지 않아 처리하지 않은 두 번째 요청의 응답 (C1 형식, 정책 4-2 '저장 실패'). */
-    static final String IN_PROGRESS_BODY =
-            "{\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"저장하지 못했습니다. 다시 시도해 주세요.\"}}";
+    /** 오류 본문만 쓰는 용도 (날짜 칸 없음). 형식은 공통 {@link ErrorResponse}, 문구는 {@link ErrorCode} 한 곳 (K16 ②). */
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final IdempotencyStore store;
     private final Duration wait;
@@ -111,10 +115,12 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     }
 
     private static void inProgress(HttpServletResponse response) throws IOException {
-        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        response.setContentType("application/json");
+        // 처음 요청이 끝나지 않아 처리하지 않은 두 번째 요청: C1 형식, 정책 4-2 '저장 실패'
+        ErrorCode code = ErrorCode.INTERNAL_ERROR;
+        response.setStatus(code.status().value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getOutputStream().write(IN_PROGRESS_BODY.getBytes(StandardCharsets.UTF_8));
+        JSON.writeValue(response.getOutputStream(), ErrorResponse.of(code.name(), ErrorCode.internalErrorMessage(false)));
         response.flushBuffer();
     }
 
