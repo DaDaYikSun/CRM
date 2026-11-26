@@ -10,6 +10,7 @@
 -- 2026-11-25: schedule.missed_at · idx_schedule_missed 되살림 (11/25 회의 R1 · R9: 누락은 판정할 때 저장) (#89)
 -- 2026-11-25: missed_at 주석에 기준 안 방문이면 완료 때 지움을 적음 (#109)
 -- 2026-11-26: V1 전 정리 (#136). 리포트 양식 기본값을 T5로, DATE 기본값 (CURRENT_DATE) 뺌(앱이 한국 날짜를 넣음), 접종 규칙 확정 대기 표시 정리 (행 예시 · 미확정 값은 DB 설계 4-7)
+-- 2026-11-26: CRM_START_DATE는 V2 기본 데이터에 2026-06-01로 넣는다고 주석을 고침 (DB 설계 4-8)
 -- 실행 순서: 이 파일 전체를 위에서 아래로 실행
 -- =====================================================================
 
@@ -404,7 +405,7 @@ INSERT INTO setting (setting_key, setting_value, value_type, description) VALUES
   ('RAINBOW_HOLD_DAYS',   '30', 'INT',    '무지개다리 후 같은 집 다른 아이 연락 보류 기간(일)'),
   ('HOSPITAL_NAME',       '다다익선 동물병원', 'STRING', '병원 이름: 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 [FR-ADM-008]'),
   ('HOSPITAL_PHONE',      '0200000000', 'STRING', '병원 전화번호(숫자만): 문자와 리포트에 같이 씀, 문자 문구 탭에서 수정 (시연용, 실제로 쓰지 않는 번호)');
--- CRM_START_DATE(사용 전·후 비교 기준일)는 더미 데이터를 만들 때 넣는다 [FR-DATA-002]
+-- CRM_START_DATE(사용 전·후 비교 기준일)는 V2 기본 데이터(V2__seed_base.sql)에 2026-06-01로 넣는다. 더미 데이터 매뉴얼 'CRM 도입일'과 같은 값 [FR-DATA-002]
 
 INSERT INTO message_template (template_code, body, default_body) VALUES
   ('VACCINE',
