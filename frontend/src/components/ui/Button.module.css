@@ -1,0 +1,68 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-6);
+  padding: 0 var(--spacing-16);
+  border: 1px solid transparent;
+  border-radius: var(--radius-10);
+  font-family: inherit;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.sm {
+  min-height: var(--control-height-sm);
+}
+
+.md {
+  min-height: var(--control-height-md);
+}
+
+.lg {
+  min-height: var(--control-height-lg);
+}
+
+.primary {
+  background: var(--action-primary);
+  color: var(--text-on-brand);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--action-primary-hover);
+}
+
+.secondary {
+  background: var(--bg-surface);
+  border-color: var(--border-control);
+  color: var(--text-primary);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-link);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+
+.danger {
+  background: var(--bg-surface);
+  border-color: var(--border-error);
+  color: var(--status-danger-text);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--status-danger-bg);
+}
