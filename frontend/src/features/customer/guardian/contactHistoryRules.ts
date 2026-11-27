@@ -1,22 +1,6 @@
 // S-06 연락 기록 표 (#158, FR-CNT-001). 화면 문구 · 페이지 계산만 둔다. 판단은 주인(contact)이 저장한 값을 그대로 보여 준다 (K17).
 import type { PageData } from "@/types/common";
 
-/** GET /api/guardians/{id}/contacts?page= 한 줄: 타임라인 CONTACT 줄 + petName (API 설계 3-6) */
-export interface GuardianContactItem {
-  kind: "CONTACT";
-  id: number;
-  date: string; // YYYY-MM-DD
-  summary: string; // "전화 · 본인 · 전화 안 받음" (방법 · 통화한 사람 · 결과)
-  memo: string | null;
-  staffName: string;
-  recordedAt: string;
-  edited: boolean;
-  editable: boolean;
-  converted: boolean;
-  mockSms: boolean;
-  petName: string;
-}
-
 /** 정책 4-2 빈 목록: 표에 S-06 연락 기록 행이 없어 POL-ERR-008 공통 문구 */
 export const CONTACT_HISTORY_EMPTY = "아직 기록이 없습니다.";
 

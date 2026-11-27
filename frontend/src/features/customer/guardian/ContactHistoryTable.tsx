@@ -5,14 +5,13 @@ import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { FORBIDDEN_MESSAGE } from "@/features/auth/access";
 import { ApiError, LOAD_FAILED_MESSAGE } from "@/lib/api/client";
+import { getContactHistory, type ContactHistoryItem } from "@/lib/api/contact";
 import type { PageData } from "@/types/common";
-import { fetchGuardianContacts } from "./contactHistoryApi";
 import {
   CONTACT_HISTORY_EMPTY,
   CONTACT_HISTORY_TITLE,
   lastPage,
   pageToShowInstead,
-  type GuardianContactItem,
 } from "./contactHistoryRules";
 import styles from "./ContactHistoryTable.module.css";
 import cardStyles from "./GuardianDetail.module.css";
@@ -20,12 +19,12 @@ import cardStyles from "./GuardianDetail.module.css";
 // S-06 연락 기록 표 (#158, FR-CNT-001). 최근 순 20개씩. 미용사는 서버가 403으로 막는다 (POL-ACC-011, NFR-SEC-002).
 export function ContactHistoryTable({ guardianId }: { guardianId: number }) {
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<PageData<GuardianContactItem> | null>(null);
+  const [data, setData] = useState<PageData<ContactHistoryItem> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let stale = false;
-    fetchGuardianContacts(guardianId, page)
+    getContactHistory(guardianId, page)
       .then((d) => {
         if (stale) return;
         const instead = pageToShowInstead(d);
