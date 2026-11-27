@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { SearchBox } from "@/features/search/SearchBox";
 import styles from "./layout.module.css";
 
 // 로그인 뒤 공통 레이아웃: 사이드바 + 상단 바 (S-02~S-11, B-01~B-06이 함께 씀).
@@ -10,7 +11,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     <div className={styles.shell}>
       <Sidebar />
       <div className={styles.body}>
-        <TopBar />
+        <TopBar search={<SearchBox />} />
         <main className={styles.main}>{children}</main>
       </div>
     </div>
