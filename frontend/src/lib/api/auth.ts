@@ -21,3 +21,8 @@ export function fetchMe(): Promise<CurrentStaff> {
 export function changePassword(newPassword: string, idempotencyKey?: string): Promise<null> {
   return api.post<null>("/api/auth/password", { newPassword }, { idempotencyKey });
 }
+
+/** 로그아웃 (POL-ACC-008, #167). 로그인이 없거나 만료됐어도 성공한다 */
+export function logout(): Promise<void> {
+  return api.post<void>("/api/auth/logout");
+}

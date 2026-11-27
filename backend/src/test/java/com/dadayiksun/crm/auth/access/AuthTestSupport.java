@@ -1,5 +1,7 @@
 package com.dadayiksun.crm.auth.access;
 
+import java.time.Instant;
+
 import org.springframework.mock.web.MockHttpSession;
 
 import com.dadayiksun.crm.auth.domain.Role;
@@ -22,6 +24,7 @@ public final class AuthTestSupport {
         MockHttpSession session = new MockHttpSession();
         session.setAttribute(SessionKeys.STAFF_ID, staffId);
         session.setAttribute(AuthSession.ROLE, role.name());
+        session.setAttribute(AuthSession.LOGIN_AT, Instant.now().toEpochMilli()); // 로그인 뒤 8시간 검사 (#167)
         return session;
     }
 }
