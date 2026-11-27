@@ -1,16 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { LOAD_FAILED_MESSAGE } from "@/lib/api/client";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { PageGuide } from "@/components/ui/PageGuide";
+import { loadFailure, type Failure } from "@/lib/api/failure";
 import { searchPets, type SearchItem } from "@/lib/api/search";
 import { SearchResultRow } from "@/features/search/SearchResultRow";
 import styles from "@/features/search/search.module.css";
 import type { PageData } from "@/types/common";
 
 // S-05 통합 검색 결과 (FR-SRCH-001 · 002). 문구는 정책 4-2 · 4-4 그대로.
-const GUIDE = "번호 뒤 4자리, 보호자·아이 이름, 초성으로 찾습니다. 띄어쓰기와 하이픈은 무시합니다.";
 const MANY_RESULTS = "번호 뒤 4자리를 함께 넣으면 더 빨리 찾을 수 있습니다.";
 
 function Results() {
@@ -18,33 +19,44 @@ function Results() {
   const q = params.get("q") ?? "";
   const page = Math.max(1, Number(params.get("page")) || 1);
   const [data, setData] = useState<PageData<SearchItem> | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<Failure | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // [다시 시도]를 누르면 그 버튼이 사라지므로 포커스를 제목으로 옮겨 잃지 않게 한다 (PR #213 리뷰)
+  const retry = () => {
+    heading.current?.focus();
+    setAttempt((n) => n + 1);
+  };
 
   useEffect(() => {
     let stale = false;
     setData(null);
-    setFailed(false);
+    setFailure(null);
     if (!q.trim()) return;
     searchPets(q, page)
       .then((r) => {
         if (!stale) setData(r);
       })
-      .catch(() => {
-        if (!stale) setFailed(true);
+      .catch((e: unknown) => {
+        if (!stale) setFailure(loadFailure(e));
       });
     return () => {
       stale = true;
     };
-  }, [q, page]);
+  }, [q, page, attempt]);
 
   const href = (p: number) => `/search?q=${encodeURIComponent(q)}&page=${p}`;
   const lastPage = data ? Math.max(1, Math.ceil(data.total / data.size)) : 1;
 
   return (
     <section>
-      <h1>통합 검색</h1>
-      <p className={styles.guide}>{GUIDE}</p>
-      {failed && <p className={styles.error}>{LOAD_FAILED_MESSAGE}</p>}
+      <h1 ref={heading} tabIndex={-1}>
+        통합 검색
+      </h1>
+      <PageGuide screen="S-05" />
+      {failure && (
+        <ErrorState message={failure.message} onRetry={failure.retry ? retry : undefined} />
+      )}
       {data && (
         <>
           <p>검색 결과 {data.total}건</p>

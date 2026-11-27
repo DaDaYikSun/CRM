@@ -6,6 +6,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { ApiError, LOAD_FAILED_MESSAGE, newIdempotencyKey } from "@/lib/api/client";
+import { saveFailure } from "@/lib/api/failure";
 import {
   fetchBreeds,
   fetchCoatTypes,
@@ -93,7 +94,7 @@ export function PetProfileForm({
       key.current = null;
       onSaved(PET_SAVED_TOAST);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : LOAD_FAILED_MESSAGE);
+      setError(saveFailure(e).message);
     } finally {
       setSaving(false);
     }

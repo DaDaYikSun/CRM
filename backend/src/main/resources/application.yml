@@ -39,7 +39,7 @@ spring:
 server:
   servlet:
     session:
-      # 로그인 뒤 8시간 (POL-ACC-005). '로그인한 때부터' 검사는 #143에서 더한다 (API 설계 1-6)
+      # 마지막 요청 뒤 8시간. '로그인 뒤 8시간'(POL-ACC-005)은 AuthSession이 로그인 시각으로 따로 본다 (#167, API 설계 1-6)
       timeout: 8h
       cookie:
         http-only: true
