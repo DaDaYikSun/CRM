@@ -8,6 +8,8 @@ import { login } from "@/lib/api/auth";
 import { HOME_PATH } from "./access";
 import styles from "./LoginForm.module.css";
 
+const ERROR_ID = "login-error";
+
 // S-01 로그인 (FR-AUTH-001). 틀리면 서버가 준 정책 4-2 문구를 그대로 보여 준다. 실패 횟수로 잠그지 않는다 (POL-ACC-006).
 // 임시 비밀번호 화면(초안 33) · 세션 만료 안내와 보던 화면 복귀(초안 17)는 이 화면에 나중에 더한다.
 export function LoginForm() {
@@ -35,7 +37,7 @@ export function LoginForm() {
     <form className={styles.card} onSubmit={submit} noValidate>
       <h1 className={styles.title}>돌아올개</h1>
       {error && (
-        <p role="alert" className={styles.error}>
+        <p id={ERROR_ID} role="alert" className={styles.error}>
           {error}
         </p>
       )}
@@ -44,8 +46,12 @@ export function LoginForm() {
         <input
           className={styles.input}
           value={loginId}
-          onChange={(e) => setLoginId(e.target.value)}
+          onChange={(e) => {
+            setLoginId(e.target.value);
+            setError(null);
+          }}
           autoComplete="username"
+          aria-describedby={error ? ERROR_ID : undefined}
           autoFocus
         />
       </label>
@@ -55,9 +61,13 @@ export function LoginForm() {
           className={styles.input}
           type="password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setError(null);
+          }}
           autoComplete="current-password"
           aria-invalid={error ? true : undefined}
+          aria-describedby={error ? ERROR_ID : undefined}
         />
       </label>
       <Button type="submit" size="lg" loading={loading}>

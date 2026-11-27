@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { canOpen, HOME_PATH, STAFF_NAME_HEADER, STAFF_ROLE_HEADER } from "@/features/auth/access";
 import type { CurrentStaff } from "@/lib/api/auth";
+import { LOAD_FAILED_MESSAGE } from "@/lib/api/client";
 
 // 화면 라우트 보호 (FR-AUTH-002, POL-ERR-004).
 // - 로그인이 없으면 /login
@@ -10,20 +11,24 @@ export const config = { matcher: ["/((?!api|_next|login|favicon.ico).*)"] };
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8080";
 
+// 로그인이 없으면(401) null. 서버 장애 · 네트워크 오류는 던져서 미인증과 구분한다.
 async function fetchStaff(request: NextRequest): Promise<CurrentStaff | null> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      headers: { cookie: request.headers.get("cookie") ?? "" },
-      cache: "no-store",
-    });
-    return response.ok ? ((await response.json()) as { data: CurrentStaff }).data : null;
-  } catch {
-    return null;
-  }
+  const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+    headers: { cookie: request.headers.get("cookie") ?? "" },
+    cache: "no-store",
+  });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error(`auth/me ${response.status}`);
+  return ((await response.json()) as { data: CurrentStaff }).data;
 }
 
 export async function middleware(request: NextRequest) {
-  const staff = await fetchStaff(request);
+  let staff: CurrentStaff | null;
+  try {
+    staff = await fetchStaff(request);
+  } catch {
+    return new NextResponse(LOAD_FAILED_MESSAGE, { status: 503 });
+  }
   if (!staff) return NextResponse.redirect(new URL("/login", request.url));
 
   const { pathname } = request.nextUrl;
