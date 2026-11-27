@@ -101,13 +101,27 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
     if (!form || !detail) return;
     setShowErrors(true);
     if (Object.keys(guardianFormErrors(form)).length > 0) return;
-    const patch = buildGuardianPatch(toForm(detail), form);
+    setSaving(true);
+    setSaveError(null);
+    let base = detail;
+    if (saveKey.current !== null) {
+      // 앞선 저장의 결과를 모른다(응답 유실): 서버가 이미 저장했을 수 있으니 서버 상태를 기준으로 바뀐 칸을 다시 가린다
+      try {
+        base = await fetchGuardianDetail(guardianId);
+        setDetail(base);
+      } catch {
+        setSaveError(LOAD_FAILED_MESSAGE);
+        setSaving(false);
+        return;
+      }
+    }
+    const patch = buildGuardianPatch(toForm(base), form);
     if (!patch) {
+      saveKey.current = null;
+      setSaving(false);
       setEditing(false);
       return;
     }
-    setSaving(true);
-    setSaveError(null);
     // 응답을 잃은 뒤 내용을 고쳐 다시 보내면 옛 응답이 돌아오지 않게, 본문이 바뀌면 키를 새로 만든다
     const body = JSON.stringify(patch);
     if (saveKey.current === null || saveBody.current !== body) {
