@@ -29,6 +29,7 @@ export type ErrorCode =
   | "SMS_NOT_AGREED"
   | "PET_RAINBOW"
   | "LOGIN_ID_TAKEN"
+  | "OPTION_DUPLICATE"
   | "INTERNAL_ERROR";
 
 export interface FieldError {
