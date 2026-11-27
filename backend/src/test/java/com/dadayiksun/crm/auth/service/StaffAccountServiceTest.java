@@ -104,4 +104,27 @@ class StaffAccountServiceTest {
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).code()).isEqualTo(ErrorCode.NOT_FOUND));
     }
+
+    @Test
+    void 비밀번호를_초기화하면_새_임시_비밀번호_해시를_저장하고_다음_로그인때_바꾸게_하고_세션을_지운다() {
+        when(repo.findById(7L)).thenReturn(Optional.of(desk(true)));
+
+        String temp = service.resetPassword(7L);
+
+        ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
+        verify(repo).updatePassword(eq(7L), hash.capture(), eq(true));
+        assertThat(PasswordRule.isValid(temp)).isTrue();
+        assertThat(encoder.matches(temp, hash.getValue())).isTrue();
+        verify(terminator).terminateAll(7L);
+    }
+
+    @Test
+    void 없는_직원의_비밀번호_초기화는_404() {
+        when(repo.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.resetPassword(99L))
+                .isInstanceOf(ApiException.class)
+                .extracting(e -> ((ApiException) e).code()).isEqualTo(ErrorCode.NOT_FOUND);
+        verify(repo, never()).updatePassword(any(), anyString(), eq(true));
+        verify(terminator, never()).terminateAll(99L);
+    }
 }

@@ -7,7 +7,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { ROLE_LABEL } from "@/features/auth/access";
-import { createStaff, listStaff, updateStaff, type StaffItem } from "@/lib/api/admin";
+import { createStaff, listStaff, resetStaffPassword, updateStaff, type StaffItem } from "@/lib/api/admin";
 import { fetchMe } from "@/lib/api/auth";
 import { ApiError, LOAD_FAILED_MESSAGE, SAVE_FAILED_MESSAGE, newIdempotencyKey } from "@/lib/api/client";
 import { useDialogFocus } from "@/lib/hooks/useDialogFocus";
@@ -18,6 +18,7 @@ import {
   ROLE_OPTIONS,
   STAFF_COPY,
   formatLastLogin,
+  resetConfirmMessage,
   staffFormErrors,
   statusLabel,
   type StaffForm,
@@ -28,7 +29,7 @@ const EMPTY_FORM: StaffForm = { name: "", loginId: "", role: "" };
 
 // B-01 직원 관리 (#150, FR-ADM-001, 화면 설계 SCR-B01). 관리자만 (서버도 막는다, NFR-SEC-002).
 // 직원 추가 → 임시 비밀번호 모달(한 번만 보임). 역할 바꾸기 · 비활성화는 줄에서. 퇴사 직원은 지우지 않는다 (POL-ACC-004).
-// [비밀번호 초기화]는 #183, 입력 중 나가기 경고는 #184가 더한다.
+// [비밀번호 초기화] → 확인 창 → 임시 비밀번호 모달 (#183, FR-ADM-007, SCR-B01-07). 입력 중 나가기 경고는 #184.
 export function StaffManagement() {
   const [staff, setStaff] = useState<StaffItem[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -44,6 +45,12 @@ export function StaffManagement() {
   const [saving, setSaving] = useState(false);
   const [saveKey, setSaveKey] = useState(newIdempotencyKey);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<StaffItem | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  // 응답을 잃고 다시 눌러도 같은 직원이면 같은 키: 서버가 처음 만든 임시 비밀번호를 그대로 돌려준다 (K15)
+  // 직원별로 둔다: 다른 직원 창을 열었다 돌아와도 키가 바뀌지 않는다 (#183 리뷰). 응답을 받으면 그 직원 키만 지운다
+  const resetKeys = useRef(new Map<number, string>());
   const loadSeq = useRef(0);
   const addDialog = useRef<HTMLFormElement>(null);
   const tempDialog = useRef<HTMLDivElement>(null);
@@ -51,6 +58,18 @@ export function StaffManagement() {
     if (!saving) setAdding(false);
   }, [saving]);
   const closeTemp = useCallback(() => setTempPassword(null), []);
+  const resetDialog = useRef<HTMLDivElement>(null);
+  const closeReset = useCallback(() => {
+    if (!resetting) setResetTarget(null);
+  }, [resetting]);
+  useDialogFocus(resetDialog, resetTarget !== null, closeReset);
+  // 초기화 중에는 두 버튼이 다 꺼져 포커스가 창 밖으로 빠진다: 창 자체에 두고, 끝나면(실패) 첫 버튼으로 돌린다 (#183 리뷰)
+  useEffect(() => {
+    const dialog = resetDialog.current;
+    if (!dialog) return;
+    if (resetting) dialog.focus();
+    else if (document.activeElement === dialog) dialog.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+  }, [resetting]);
   useDialogFocus(addDialog, adding, closeAdd);
   useDialogFocus(tempDialog, tempPassword !== null, closeTemp);
 
@@ -127,6 +146,29 @@ export function StaffManagement() {
     }
   }
 
+  function openReset(item: StaffItem) {
+    setResetError(null);
+    if (!resetKeys.current.has(item.staffId)) resetKeys.current.set(item.staffId, newIdempotencyKey());
+    setResetTarget(item);
+  }
+
+  async function confirmReset() {
+    const key = resetTarget ? resetKeys.current.get(resetTarget.staffId) : undefined;
+    if (!resetTarget || !key) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      const result = await resetStaffPassword(resetTarget.staffId, { idempotencyKey: key });
+      resetKeys.current.delete(resetTarget.staffId);
+      setResetTarget(null);
+      setTempPassword(result.tempPassword);
+    } catch (e) {
+      setResetError(e instanceof ApiError ? e.message : SAVE_FAILED_MESSAGE);
+    } finally {
+      setResetting(false);
+    }
+  }
+
   const errors = touched ? staffFormErrors(form) : {};
 
   return (
@@ -200,14 +242,19 @@ export function StaffManagement() {
                     <td>{formatLastLogin(item.lastLoginAt)}</td>
                     <td>
                       {item.isActive && !isMe && (
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          loading={busy}
-                          onClick={() => void change(item, { isActive: false })}
-                        >
-                          비활성화
-                        </Button>
+                        <div className={styles.rowActions}>
+                          <Button variant="secondary" size="sm" disabled={busy} onClick={() => openReset(item)}>
+                            비밀번호 초기화
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            loading={busy}
+                            onClick={() => void change(item, { isActive: false })}
+                          >
+                            비활성화
+                          </Button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -272,6 +319,36 @@ export function StaffManagement() {
               </Button>
             </div>
           </form>
+        </div>
+      )}
+
+      {resetTarget && (
+        <div className={styles.backdrop}>
+          <div
+            ref={resetDialog}
+            className={styles.dialog}
+            tabIndex={-1}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="reset-title"
+            aria-describedby="reset-message"
+          >
+            <h2 id="reset-title" className={styles.dialogTitle}>
+              비밀번호 초기화
+            </h2>
+            <p id="reset-message" className={styles.dialogText}>
+              {resetConfirmMessage(resetTarget.name)}
+            </p>
+            {resetError && <Notice tone="danger">{resetError}</Notice>}
+            <div className={styles.actions}>
+              <Button variant="secondary" onClick={() => setResetTarget(null)} disabled={resetting}>
+                취소
+              </Button>
+              <Button variant="danger" loading={resetting} onClick={() => void confirmReset()}>
+                초기화
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

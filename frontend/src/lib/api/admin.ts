@@ -42,3 +42,8 @@ export function updateStaff(
 ): Promise<null> {
   return api.patch<null>(`/api/admin/staff/${staffId}`, patch, options);
 }
+
+/** POST /api/admin/staff/{id}/reset-password — 비밀번호 초기화 (FR-ADM-007, #183). 임시 비밀번호는 이때 한 번만 온다 */
+export function resetStaffPassword(staffId: number, options?: SaveOptions): Promise<{ tempPassword: string }> {
+  return api.post<{ tempPassword: string }>(`/api/admin/staff/${staffId}/reset-password`, undefined, options);
+}
