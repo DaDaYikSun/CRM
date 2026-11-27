@@ -49,9 +49,9 @@ import { useLeaveConfirm } from "@/lib/hooks/useLeaveConfirm";
 const PHONE_CHECK_DELAY_MS = 400;
 
 // S-08 보호자 · 아이 등록 (#145, FR-CUS-001 · 002). 관리자 · 데스크만 쓴다 (POL-ACC-011, 서버도 막는다).
-export function RegisterForm() {
+export function RegisterForm({ initial }: { initial?: Partial<RegisterFormState> } = {}) {
   const router = useRouter();
-  const [form, setForm] = useState<RegisterFormState>(EMPTY_FORM);
+  const [form, setForm] = useState<RegisterFormState>({ ...EMPTY_FORM, ...initial });
   const [mode, setMode] = useState<RegisterMode>({ kind: "new" });
   const [touched, setTouched] = useState<Set<RequiredField>>(new Set());
   const [serverErrors, setServerErrors] = useState<Partial<Record<RequiredField, string>>>({});
