@@ -123,3 +123,11 @@
   font-size: var(--font-size-13);
   color: var(--text-muted);
 }
+
+/* 첫 조회 중 자리 (문구 없음) */
+.skeleton {
+  min-height: 160px;
+  max-width: 880px;
+  border-radius: var(--radius-12);
+  background: var(--bg-subtle);
+}

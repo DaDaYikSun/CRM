@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -28,11 +28,18 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
   const [toast, setToast] = useState<string | null>(null);
   const groomer = role === "GROOMER";
 
+  const requestSeq = useRef(0);
+
   const load = useCallback(() => {
     setLoadError(null);
+    const seq = ++requestSeq.current; // 늦게 도착한 옛 응답이 최신 상세를 덮어쓰지 않게 가장 나중에 보낸 요청만 반영한다
     fetchPetDetail(petId)
-      .then(setDetail)
-      .catch((e: unknown) => setLoadError(e instanceof ApiError ? e.message : LOAD_FAILED_MESSAGE));
+      .then((r) => {
+        if (seq === requestSeq.current) setDetail(r);
+      })
+      .catch((e: unknown) => {
+        if (seq === requestSeq.current) setLoadError(e instanceof ApiError ? e.message : LOAD_FAILED_MESSAGE);
+      });
   }, [petId]);
 
   useEffect(() => {
@@ -44,7 +51,8 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
   const closeToast = useCallback(() => setToast(null), []);
 
   if (loadError) return <Notice tone="danger">{loadError}</Notice>;
-  if (!detail) return null;
+  // 아이 상세의 로딩 문구는 정책에 없다: 글자 없이 스켈레톤과 aria-busy만 둔다 (문구를 지어내지 않는다)
+  if (!detail) return <div className={styles.skeleton} aria-busy="true" />;
   const { pet, guardian, siblings, schedules } = detail;
   const rainbow = pet.status === "RAINBOW";
   const today = todayKst();

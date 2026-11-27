@@ -32,15 +32,18 @@ function TimelineItem({ line }: { line: TimelineLine }) {
 export function Timeline({ petId, showFilter, reloadKey = 0 }: { petId: number; showFilter: boolean; reloadKey?: number }) {
   const [type, setType] = useState<TimelineType>("ALL");
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<PageData<TimelineLine> | null>(null);
+  // 응답을 조회 조건(아이 · 필터 · 쪽)에 묶는다: 조건이 바뀐 뒤 조회가 실패해도 이전 조건의 기록을 지금 것처럼 보이지 않는다
+  const [loaded, setLoaded] = useState<{ key: string; data: PageData<TimelineLine> } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const key = `${petId}|${showFilter ? type : ""}|${page}`;
+  const data = loaded?.key === key ? loaded.data : null;
 
   useEffect(() => {
     let stale = false;
     setError(null);
     fetchPetTimeline(petId, page, showFilter ? type : undefined)
       .then((r) => {
-        if (!stale) setData(r);
+        if (!stale) setLoaded({ key, data: r });
       })
       .catch((e: unknown) => {
         if (!stale) setError(e instanceof ApiError ? e.message : LOAD_FAILED_MESSAGE);
@@ -48,7 +51,7 @@ export function Timeline({ petId, showFilter, reloadKey = 0 }: { petId: number; 
     return () => {
       stale = true;
     };
-  }, [petId, type, page, reloadKey, showFilter]);
+  }, [petId, type, page, reloadKey, showFilter, key]);
 
   const last = data ? lastPage(data.total, data.size) : 1;
   const filtered = showFilter && type !== "ALL";
