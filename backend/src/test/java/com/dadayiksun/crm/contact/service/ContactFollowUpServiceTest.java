@@ -44,7 +44,7 @@ class ContactFollowUpServiceTest {
         when(settings.getString("HOSPITAL_PHONE")).thenReturn("0200000000");
         query.templates.put("VACCINE", "[{병원 이름}] {아이 이름}의 {접종 종류} 접종 예정일은 {예정일}입니다. 방문 전 {병원 전화번호}로 예약해 주세요.");
         query.templates.put("GROOMING", "[{병원 이름}] {아이 이름}의 다음 미용 예정일은 {예정일} 무렵입니다. 원하시는 날짜를 {병원 전화번호}로 알려 주세요.");
-        service = new ContactFollowUpService(query, logs, schedules, guardians, settings);
+        service = new ContactFollowUpService(query, schedules, guardians, new MockSmsWriter(query, logs, settings));
     }
 
     private static GroupItem item(long scheduleId, String result, int prevNoAnswer, String service, String vaccine,
@@ -57,7 +57,7 @@ class ContactFollowUpServiceTest {
     private static GroupItem item(long scheduleId, String result, int prevNoAnswer, String prevState,
                                   LocalDate prevNext, String service, String vaccine, LocalDate due, boolean smsAgreed) {
         return new GroupItem(scheduleId, 12, "보리", 7, "01000000000", smsAgreed, result,
-                "NO_ANSWER".equals(result) ? TOMORROW : null, prevNoAnswer, prevState, prevNext, service, vaccine, due,
+                "NO_ANSWER".equals(result) ? TOMORROW : null, prevNoAnswer, prevState, prevNext, service, vaccine, vaccine != null, due,
                 AT, 3);
     }
 

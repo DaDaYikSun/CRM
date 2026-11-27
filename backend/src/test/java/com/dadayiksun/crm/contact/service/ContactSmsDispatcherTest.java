@@ -8,16 +8,17 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import com.dadayiksun.crm.contact.dto.SaveContactResponse;
+import com.dadayiksun.crm.contact.dto.SendSmsResponse;
 
 /** 커밋 뒤 2일차 문자 (K21): SmsSender가 실패해도 연락 결과는 그대로고 응답의 sent = false로 알린다 */
 class ContactSmsDispatcherTest {
 
-    private static ContactSaveService.Saved saved(ContactFollowUpService.PendingSms pending) {
+    private static ContactSaveService.Saved saved(MockSmsWriter.PendingSms pending) {
         return new ContactSaveService.Saved("g1", new ContactFollowUpService.Outcome(List.of(101L), pending));
     }
 
-    private static final ContactFollowUpService.PendingSms PENDING =
-            new ContactFollowUpService.PendingSms("01012345678", "문구", "VACCINE");
+    private static final MockSmsWriter.PendingSms PENDING =
+            new MockSmsWriter.PendingSms("01012345678", "문구", "VACCINE");
 
     @Test
     void 보내면_sent_true와_문구_종류() {
@@ -37,6 +38,17 @@ class ContactSmsDispatcherTest {
 
         assertThat(res.contactGroupId()).isEqualTo("g1");
         assertThat(res.followUp().mockSms()).isEqualTo(new SaveContactResponse.MockSms(false, "VACCINE"));
+    }
+
+    @Test
+    void 문자_보내기는_문구와_sent를_주고_실패해도_예외_없이_sent_false() {
+        ContactSmsService.Recorded recorded = new ContactSmsService.Recorded("g2", PENDING);
+
+        assertThat(new ContactSmsDispatcher((phone, body) -> { }).sendAfterCommit(recorded))
+                .isEqualTo(new SendSmsResponse("g2", "문구", "VACCINE", true));
+        assertThat(new ContactSmsDispatcher((phone, body) -> {
+            throw new IllegalStateException("발송 실패");
+        }).sendAfterCommit(recorded)).isEqualTo(new SendSmsResponse("g2", "문구", "VACCINE", false));
     }
 
     @Test

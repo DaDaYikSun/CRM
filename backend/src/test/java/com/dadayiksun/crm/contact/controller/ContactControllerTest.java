@@ -36,6 +36,8 @@ import com.dadayiksun.crm.contact.service.ContactSmsDispatcher;
 import com.dadayiksun.crm.contact.sms.SmsSender;
 import com.dadayiksun.crm.contact.service.ContactPanelService;
 import com.dadayiksun.crm.contact.service.ContactSaveService;
+import com.dadayiksun.crm.contact.service.ContactSmsService;
+import com.dadayiksun.crm.contact.service.MockSmsWriter;
 
 import jakarta.servlet.http.Cookie;
 
@@ -58,6 +60,8 @@ class ContactControllerTest {
     private ContactSaveService saveService;
     @MockitoBean
     private SmsSender smsSender;
+    @MockitoBean
+    private ContactSmsService smsService;
 
     private Cookie csrf;
 
@@ -104,6 +108,27 @@ class ContactControllerTest {
         save(desk, "same-key").andExpect(status().isCreated()).andExpect(jsonPath("$.data.contactGroupId").value("g-uuid"));
 
         verify(saveService, times(1)).save(any(), eq(5L));
+    }
+
+    @Test
+    void 문자_보내기는_201로_기록_묶음과_문구를_주고_미용사는_403() throws Exception {
+        when(smsService.record(any(), eq(5L))).thenReturn(new ContactSmsService.Recorded("s-uuid",
+                new MockSmsWriter.PendingSms("01000000000", "문구", "VACCINE")));
+        String body = "{ \"guardianId\": 7, \"items\": [ { \"scheduleId\": 101 } ] }";
+
+        mvc.perform(post("/api/contacts/sms").session(AuthTestSupport.session(5L, Role.DESK)).cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue()).header(IdempotencyFilter.HEADER, "sms-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.contactGroupId").value("s-uuid"))
+                .andExpect(jsonPath("$.data.body").value("문구"))
+                .andExpect(jsonPath("$.data.template").value("VACCINE"))
+                .andExpect(jsonPath("$.data.sent").value(true));
+        mvc.perform(post("/api/contacts/sms").session(AuthTestSupport.session(Role.GROOMER)).cookie(csrf)
+                        .header("X-XSRF-TOKEN", csrf.getValue()).header(IdempotencyFilter.HEADER, "sms-2")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        verify(smsService, times(1)).record(any(), anyLong());
     }
 
     @Test

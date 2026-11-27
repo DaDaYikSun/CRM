@@ -1,7 +1,7 @@
 // S-04 연락 패널 규칙 (FR-CNT-001 · 002, POL-CNT-002 · 006, POL-TGT-006, 화면 설계 SCR-S04). 화면 그리기와 떼어 테스트한다.
 // 문구는 정책 4-2 · 4-4 글자 그대로.
 import type { ContactResult, PanelItem, SaveContactFollowUp } from "@/lib/api/contact";
-import { addDays } from "@/lib/utils/date";
+import { addDays, KST_TIME_ZONE } from "@/lib/utils/date";
 
 export const RESULT_LABEL: Record<ContactResult, string> = {
   BOOKED: "예약함",
@@ -17,7 +17,22 @@ export const COPY = {
   saved: "연락 결과를 저장했습니다.",
   emptyHistory: "이 보호자에게 남긴 연락 기록이 없습니다.",
   smsNotAgreed: "안내 문자 수신에 동의하지 않은 보호자입니다. 전화로 연락해 주세요.",
+  smsNote: "실제로 보내지 않고 모의 발송으로 기록합니다", // 정책 4-4 S-04 문자 버튼 아래
+  smsSent: "문자를 보낸 것으로 기록했습니다 (모의 발송).", // 정책 4-2 문자 모의 발송
+  smsFailed: "연락 결과는 저장했습니다. 문자는 보내지 못했습니다. 문자 보내기 버튼으로 다시 시도해 주세요.", // 정책 4-2 문자 발송 실패
+  nightWarning: "지금은 밤 9시~아침 8시입니다. 접종·미용 안내 문자는 병원 운영 시간에 보내 주세요.", // 정책 4-2 야간 문자 경고
 } as const;
+
+// POL-CNT-007 고정값: 21시~다음 날 8시 (한국 시간)
+const NIGHT_START_HOUR = 21;
+const NIGHT_END_HOUR = 8;
+const kstHour = new Intl.DateTimeFormat("en-US", { timeZone: KST_TIME_ZONE, hour: "numeric", hourCycle: "h23" });
+
+/** 지금이 야간 문자 경고 시간인지 (POL-CNT-007). 경고만 하고 보낼 수는 있다 */
+export function isNightKst(now: Date = new Date()): boolean {
+  const hour = Number(kstHour.format(now));
+  return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR;
+}
 
 export const MEMO_MAX = 200;
 
