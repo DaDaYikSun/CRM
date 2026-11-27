@@ -10,8 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dadayiksun.crm.common.response.ApiResponse;
 import com.dadayiksun.crm.customer.dto.PetProfilePatch;
 import com.dadayiksun.crm.customer.dto.PetProfileResponse;
+import com.dadayiksun.crm.customer.dto.RainbowResponse;
 import com.dadayiksun.crm.customer.dto.RainbowRevertResponse;
 import com.dadayiksun.crm.customer.service.PetProfileService;
+import com.dadayiksun.crm.customer.service.RainbowMarkService;
 import com.dadayiksun.crm.customer.service.RainbowRevertService;
 
 /**
@@ -25,10 +27,19 @@ public class PetProfileController {
 
     private final PetProfileService profile;
     private final RainbowRevertService rainbowRevert;
+    private final RainbowMarkService rainbowMark;
 
-    public PetProfileController(PetProfileService profile, RainbowRevertService rainbowRevert) {
+    public PetProfileController(PetProfileService profile, RainbowRevertService rainbowRevert,
+            RainbowMarkService rainbowMark) {
         this.profile = profile;
         this.rainbowRevert = rainbowRevert;
+        this.rainbowMark = rainbowMark;
+    }
+
+    /** C21 무지개다리로 표시. 관리자 · 데스크만 (POL-ACC-011, 역할은 RoleAccessRules가 건다). */
+    @PostMapping("/{petId}/rainbow")
+    public ApiResponse<RainbowResponse> rainbow(@PathVariable("petId") Long petId) {
+        return ApiResponse.of(rainbowMark.mark(petId));
     }
 
     @PatchMapping("/{petId}")

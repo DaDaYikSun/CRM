@@ -15,6 +15,10 @@ public final class OptionResponses {
     public record CoatTypeOption(Long coatTypeId, String code, String name) {
     }
 
+    /** 읽기 전용 기준값 (API 설계 3-2 {@code GET /api/options/settings}). 비밀값이 아닌 것만. */
+    public record SettingsResponse(int missThresholdDays, int rainbowHoldDays) {
+    }
+
     public record VaccineTypeOption(Long vaccineTypeId, String code, String name,
             @JsonProperty("isMajor") boolean isMajor) {
     }

@@ -89,6 +89,8 @@ public class RainbowRevertService {
         pet.holdContact(remainingUntil, remaining == null ? null : remaining.getPetId());
 
         changeLog.write("STATUS_CHANGE", "PET", petId, Map.of("status", "RAINBOW"), Map.of("status", "ACTIVE"));
+        // cycle은 JDBC로 아이 상태를 읽는다. 저장 전이면 아직 RAINBOW로 보여 예정 일정을 다시 만들지 않고 정리해 버린다 (#171 실제 DB 확인)
+        pets.flush();
         events.publishEvent(new PetProfileChangedEvent(petId));
         return new RainbowRevertResponse(released);
     }

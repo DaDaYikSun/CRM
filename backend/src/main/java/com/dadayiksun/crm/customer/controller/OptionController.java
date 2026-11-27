@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dadayiksun.crm.common.response.ApiResponse;
 import com.dadayiksun.crm.customer.dto.OptionResponses.BreedOption;
 import com.dadayiksun.crm.customer.dto.OptionResponses.CoatTypeOption;
+import com.dadayiksun.crm.customer.dto.OptionResponses.SettingsResponse;
 import com.dadayiksun.crm.customer.dto.OptionResponses.VaccineTypeOption;
 import com.dadayiksun.crm.customer.service.OptionQueryService;
 
@@ -31,6 +32,11 @@ public class OptionController {
     @GetMapping("/coat-types")
     public ApiResponse<List<CoatTypeOption>> coatTypes() {
         return ApiResponse.of(options.coatTypes());
+    }
+
+    @GetMapping("/settings")
+    public ApiResponse<SettingsResponse> settings() {
+        return ApiResponse.of(options.settings());
     }
 
     @GetMapping("/vaccine-types")

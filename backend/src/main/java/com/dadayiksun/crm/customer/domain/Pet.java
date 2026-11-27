@@ -114,6 +114,12 @@ public class Pet extends AuditEntity {
         return status == PetStatus.RAINBOW;
     }
 
+    /** 무지개다리로 표시: 상태와 시각만 바꾼다. 같은 집 보류는 서비스가 정한다 (POL-END-001). */
+    public void markRainbow(LocalDateTime at) {
+        this.status = PetStatus.RAINBOW;
+        this.rainbowAt = at;
+    }
+
     /** 무지개다리 되돌리기: 상태만 되돌린다. 보류 칸은 되돌리기 서비스가 정한다 (POL-END-004). */
     public void revertRainbow() {
         this.status = PetStatus.ACTIVE;

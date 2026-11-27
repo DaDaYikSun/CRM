@@ -7,6 +7,9 @@ import org.springframework.stereotype.Service;
 
 import com.dadayiksun.crm.customer.dto.OptionResponses.BreedOption;
 import com.dadayiksun.crm.customer.dto.OptionResponses.CoatTypeOption;
+import com.dadayiksun.crm.common.setting.SettingKey;
+import com.dadayiksun.crm.common.setting.SettingService;
+import com.dadayiksun.crm.customer.dto.OptionResponses.SettingsResponse;
 import com.dadayiksun.crm.customer.dto.OptionResponses.VaccineTypeOption;
 
 /**
@@ -20,9 +23,17 @@ import com.dadayiksun.crm.customer.dto.OptionResponses.VaccineTypeOption;
 public class OptionQueryService {
 
     private final JdbcTemplate jdbc;
+    private final SettingService settings;
 
-    public OptionQueryService(JdbcTemplate jdbc) {
+    public OptionQueryService(JdbcTemplate jdbc, SettingService settings) {
         this.jdbc = jdbc;
+        this.settings = settings;
+    }
+
+    /** 화면이 쓰는 기준값 읽기 (API 설계 3-2 {@code GET /api/options/settings}, 무지개다리 모달의 {보류 기간}, T6). */
+    public SettingsResponse settings() {
+        return new SettingsResponse(settings.getInt(SettingKey.MISS_THRESHOLD_DAYS),
+                settings.getInt(SettingKey.RAINBOW_HOLD_DAYS));
     }
 
     public List<BreedOption> breeds() {
