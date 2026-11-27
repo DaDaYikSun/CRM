@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchMe, type CurrentStaff } from "@/lib/api/auth";
 import { LoginForm } from "./LoginForm";
 import { NewPasswordForm } from "./NewPasswordForm";
@@ -9,11 +9,13 @@ import { NewPasswordForm } from "./NewPasswordForm";
 // 새로고침해도 /api/auth/me의 mustChangePassword로 새 비밀번호 카드를 지킨다 (API 설계 3-1).
 export function LoginScreen() {
   const [mustChange, setMustChange] = useState<CurrentStaff | null>(null);
+  // 로그인을 누른 뒤에 도착한 처음 /me 응답은 버린다. 다른 직원의 옛 세션 응답이 로그인 결과를 덮지 않게 (#150 리뷰)
+  const loginStarted = useRef(false);
 
   useEffect(() => {
     fetchMe()
       .then((me) => {
-        if (me.mustChangePassword) setMustChange(me);
+        if (!loginStarted.current && me.mustChangePassword) setMustChange(me);
       })
       .catch(() => undefined); // 로그인 전(401)이면 로그인 카드
   }, []);
@@ -21,6 +23,11 @@ export function LoginScreen() {
   return mustChange ? (
     <NewPasswordForm role={mustChange.role} />
   ) : (
-    <LoginForm onMustChangePassword={setMustChange} />
+    <LoginForm
+      onSubmitStart={() => {
+        loginStarted.current = true;
+      }}
+      onMustChangePassword={setMustChange}
+    />
   );
 }

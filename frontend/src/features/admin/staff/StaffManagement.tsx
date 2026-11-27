@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -10,6 +10,7 @@ import { ROLE_LABEL } from "@/features/auth/access";
 import { createStaff, listStaff, updateStaff, type StaffItem } from "@/lib/api/admin";
 import { fetchMe } from "@/lib/api/auth";
 import { ApiError, LOAD_FAILED_MESSAGE, SAVE_FAILED_MESSAGE, newIdempotencyKey } from "@/lib/api/client";
+import { useDialogFocus } from "@/lib/hooks/useDialogFocus";
 import type { Role } from "@/types/common";
 import {
   LOGIN_ID_MAX,
@@ -43,12 +44,26 @@ export function StaffManagement() {
   const [saving, setSaving] = useState(false);
   const [saveKey, setSaveKey] = useState(newIdempotencyKey);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const loadSeq = useRef(0);
+  const addDialog = useRef<HTMLFormElement>(null);
+  const tempDialog = useRef<HTMLDivElement>(null);
+  const closeAdd = useCallback(() => {
+    if (!saving) setAdding(false);
+  }, [saving]);
+  const closeTemp = useCallback(() => setTempPassword(null), []);
+  useDialogFocus(addDialog, adding, closeAdd);
+  useDialogFocus(tempDialog, tempPassword !== null, closeTemp);
 
+  // 저장 뒤 목록을 다시 부를 때 응답 순서가 바뀌어도 마지막에 부른 결과만 보인다 (#150 리뷰)
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     try {
-      setStaff(await listStaff());
+      const list = await listStaff();
+      if (seq !== loadSeq.current) return;
+      setStaff(list);
       setLoadError(null);
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setLoadError(e instanceof ApiError ? e.message : LOAD_FAILED_MESSAGE);
     }
   }, []);
@@ -83,15 +98,17 @@ export function StaffManagement() {
       );
       setAdding(false);
       setTempPassword(created.tempPassword);
+      setSaveKey(newIdempotencyKey());
       await load();
     } catch (e) {
       // 저장 실패: 입력은 그대로 둔다 (SCR-B01-03, POL-ERR-002). 같은 아이디는 칸 아래에 (정책 4-2)
+      // 키는 그대로 둔다: 응답만 잃었으면 같은 키로 다시 보내 서버가 처음 응답(임시 비밀번호)을 돌려준다 (K15, #150 리뷰).
+      // 입력 오류 · 중복(4xx)은 서버가 기억하지 않아 고쳐서 같은 키로 보내도 새로 처리된다
       if (e instanceof ApiError && e.code === "LOGIN_ID_TAKEN") {
         setLoginIdError(e.message);
       } else {
         setAddError(e instanceof ApiError ? e.message : SAVE_FAILED_MESSAGE);
       }
-      setSaveKey(newIdempotencyKey());
     } finally {
       setSaving(false);
     }
@@ -128,6 +145,14 @@ export function StaffManagement() {
         </Notice>
       )}
       {rowError && <Notice tone="danger">{rowError}</Notice>}
+
+      {!staff && !loadError && (
+        <div className={styles.card} aria-busy="true">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className={styles.skeletonRow} />
+          ))}
+        </div>
+      )}
 
       {staff && (
         <div className={styles.card}>
@@ -196,6 +221,7 @@ export function StaffManagement() {
       {adding && (
         <div className={styles.backdrop}>
           <form
+            ref={addDialog}
             className={styles.dialog}
             role="dialog"
             aria-modal="true"
@@ -251,7 +277,13 @@ export function StaffManagement() {
 
       {tempPassword && (
         <div className={styles.backdrop}>
-          <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="temp-password-title">
+          <div
+            ref={tempDialog}
+            className={styles.dialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="temp-password-title"
+          >
             <h2 id="temp-password-title" className={styles.dialogTitle}>
               임시 비밀번호
             </h2>

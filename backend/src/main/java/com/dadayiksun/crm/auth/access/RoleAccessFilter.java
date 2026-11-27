@@ -3,6 +3,7 @@ package com.dadayiksun.crm.auth.access;
 import java.io.IOException;
 import java.util.Set;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
@@ -10,6 +11,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.UrlPathHelper;
 
 import com.dadayiksun.crm.auth.domain.CurrentStaff;
+import com.dadayiksun.crm.auth.domain.Staff;
+import com.dadayiksun.crm.auth.repository.StaffRepository;
 import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.common.response.ErrorResponse;
 import com.dadayiksun.crm.common.security.JsonSecurityHandlers;
@@ -27,6 +30,10 @@ import jakarta.servlet.http.HttpServletResponse;
  * 컨트롤러가 아직 없는 주소도 같은 규칙으로 막힌다.
  * 임시 비밀번호로 로그인한 세션은 새 비밀번호를 정하기 전까지 {@link #PASSWORD_CHANGE_ALLOWED}만 쓰고,
  * 나머지는 403 PASSWORD_CHANGE_REQUIRED (POL-ACC-010, API 설계 1-6, #150).
+ * 요청마다 직원 행을 다시 읽는다 (#150 리뷰): 비활성이거나 역할이 세션과 다르면 세션을 지우고 401.
+ * 비활성화 · 역할 변경 때 세션을 지우는 것(StaffSessionTerminator)이 놓친 세션 — 그 기능 전에 만든 세션,
+ * 로그인과 변경이 겹쳐 늦게 저장된 세션 — 도 다음 요청에서 막는다 (POL-ACC-004).
+ * 새 비밀번호를 정했는지도 직원 행으로 본다. 같은 직원의 다른 세션도 바로 풀린다.
  */
 @Component
 @Order(-50)
@@ -38,10 +45,14 @@ public class RoleAccessFilter extends OncePerRequestFilter {
 
     private final JsonSecurityHandlers handlers;
     private final ObjectMapper objectMapper;
+    /** 직원 행. Controller 단위 테스트(@WebMvcTest)처럼 DB가 없으면 비어 있고, 그때는 세션 값만 본다 */
+    private final ObjectProvider<StaffRepository> staffRepository;
 
-    public RoleAccessFilter(JsonSecurityHandlers handlers, ObjectMapper objectMapper) {
+    public RoleAccessFilter(JsonSecurityHandlers handlers, ObjectMapper objectMapper,
+            ObjectProvider<StaffRepository> staffRepository) {
         this.handlers = handlers;
         this.objectMapper = objectMapper;
+        this.staffRepository = staffRepository;
     }
 
     @Override
@@ -55,9 +66,20 @@ public class RoleAccessFilter extends OncePerRequestFilter {
             return;
         }
         CurrentStaff staff = AuthSession.current(request).orElse(null);
+        StaffRepository staffs = staffRepository.getIfAvailable();
+        boolean mustChange = AuthSession.mustChangePassword(request);
+        if (staff != null && staffs != null) {
+            Staff row = staffs.findById(staff.staffId()).orElse(null);
+            if (row == null || !row.active() || row.role() != staff.role()) {
+                AuthSession.end(request);
+                staff = null;
+            } else {
+                mustChange = row.mustChangePassword();
+            }
+        }
         if (staff == null) {
             handlers.commence(request, response, null);
-        } else if (AuthSession.mustChangePassword(request) && !PASSWORD_CHANGE_ALLOWED.contains(method + " " + path)) {
+        } else if (mustChange && !PASSWORD_CHANGE_ALLOWED.contains(method + " " + path)) {
             writeError(response, ErrorCode.PASSWORD_CHANGE_REQUIRED);
         } else if (!RoleAccessRules.allows(staff.role(), method, path, request.getParameterMap())) {
             handlers.handle(request, response, new AccessDeniedException("role"));

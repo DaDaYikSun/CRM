@@ -1,5 +1,6 @@
 package com.dadayiksun.crm.auth.domain;
 
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 
 /**
@@ -9,6 +10,11 @@ import java.security.SecureRandom;
 public final class PasswordRule {
 
     public static final int MIN_LENGTH = 8;
+    /**
+     * 최대 길이 (UTF-8 바이트). BCrypt가 72바이트까지만 받아서 더 길면 저장할 때 서버 오류가 난다.
+     * 정책에는 최대 길이가 없어 조건 문구(PASSWORD_RULE)로 거절한다 [제안, #150 리뷰].
+     */
+    public static final int MAX_BYTES = 72;
     /** 임시 비밀번호 길이 [제안]. 조건(8자 이상)보다 조금 길게. */
     static final int TEMP_LENGTH = 10;
 
@@ -21,7 +27,8 @@ public final class PasswordRule {
     }
 
     public static boolean isValid(String password) {
-        if (password == null || password.length() < MIN_LENGTH) {
+        if (password == null || password.length() < MIN_LENGTH
+                || password.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) {
             return false;
         }
         boolean letter = password.chars().anyMatch(c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));

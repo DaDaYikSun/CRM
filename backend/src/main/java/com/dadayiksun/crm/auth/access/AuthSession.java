@@ -58,6 +58,14 @@ public final class AuthSession {
         }
     }
 
+    /** 로그인 세션을 지운다. 세션이 없으면 아무것도 안 한다 */
+    public static void end(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+    }
+
     public static Optional<CurrentStaff> current(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session == null) {

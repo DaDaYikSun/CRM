@@ -59,6 +59,14 @@ export function formatLastLogin(iso: string | null): string {
 }
 
 /** 새 비밀번호 조건 (POL-ACC-010). 화면은 미리 알려 주기만 하고, 서버가 다시 막는다 */
+export const PASSWORD_MAX_BYTES = 72;
+
 export function isValidPassword(password: string): boolean {
-  return password.length >= 8 && /[A-Za-z]/.test(password) && /[0-9]/.test(password);
+  // 72바이트(UTF-8)를 넘으면 서버(BCrypt)가 받지 못해 같은 조건 문구로 거절한다 (#150 리뷰, 서버 PasswordRule.MAX_BYTES)
+  return (
+    password.length >= 8 &&
+    new TextEncoder().encode(password).length <= PASSWORD_MAX_BYTES &&
+    /[A-Za-z]/.test(password) &&
+    /[0-9]/.test(password)
+  );
 }

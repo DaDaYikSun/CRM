@@ -27,5 +27,7 @@ describe("B-01 직원 관리 규칙", () => {
     expect(isValidPassword("abc123")).toBe(false);
     expect(isValidPassword("abcdefgh")).toBe(false);
     expect(isValidPassword("12345678")).toBe(false);
+    expect(isValidPassword("a1" + "가".repeat(24))).toBe(false); // UTF-8 74바이트
+    expect(isValidPassword("a1" + "x".repeat(70))).toBe(true); // 72바이트
   });
 });

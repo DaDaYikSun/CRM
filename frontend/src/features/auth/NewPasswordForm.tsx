@@ -25,7 +25,8 @@ export function NewPasswordForm({ role }: { role: Role }) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [saveKey] = useState(newIdempotencyKey);
+  // 같은 비밀번호를 다시 보낼 때만 같은 키. 비밀번호를 고치면 새 키 (응답을 잃은 뒤 다른 값이 옛 응답을 받지 않게, #150 리뷰)
+  const [saveKey, setSaveKey] = useState(newIdempotencyKey);
 
   const ruleBroken = password.length > 0 && !isValidPassword(password);
   const ready = isValidPassword(password) && password === confirm;
@@ -40,6 +41,11 @@ export function NewPasswordForm({ role }: { role: Role }) {
       router.replace(HOME_PATH[role]);
       router.refresh();
     } catch (e) {
+      if (e instanceof ApiError && e.code === "SESSION_EXPIRED") {
+        // 로그인이 끝났으면 로그인 카드로 돌아간다 (FR-AUTH-003, #150 리뷰)
+        window.location.replace("/login");
+        return;
+      }
       setError(e instanceof ApiError ? e.message : SAVE_FAILED_MESSAGE);
       setLoading(false);
     }
@@ -64,6 +70,7 @@ export function NewPasswordForm({ role }: { role: Role }) {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
+            setSaveKey(newIdempotencyKey());
             setError(null);
           }}
           autoComplete="new-password"

@@ -20,6 +20,8 @@ class PasswordRuleTest {
         assertThat(PasswordRule.isValid("abc123")).isFalse(); // 8자 미만
         assertThat(PasswordRule.isValid("abcdefgh")).isFalse(); // 숫자 없음
         assertThat(PasswordRule.isValid("12345678")).isFalse(); // 영문 없음
+        assertThat(PasswordRule.isValid("a1" + "가".repeat(24))).isFalse(); // UTF-8 74바이트 (BCrypt 72바이트 한계)
+        assertThat(PasswordRule.isValid("a1" + "x".repeat(70))).isTrue(); // 72바이트까지
     }
 
     @RepeatedTest(50)
