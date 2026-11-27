@@ -1,0 +1,32 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-width: 768px; /* NFR-AVAIL-002: 태블릿 가로 768px까지 */
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-15);
+  font-weight: var(--font-regular);
+  line-height: var(--line-height);
+}
+
+a {
+  color: var(--text-link);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

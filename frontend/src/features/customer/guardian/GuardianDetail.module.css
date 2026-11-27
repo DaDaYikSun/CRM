@@ -1,0 +1,108 @@
+/* S-06 보호자 상세 (#151) */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-20);
+  max-width: 880px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-20);
+  font-weight: var(--font-bold);
+}
+
+.intro {
+  margin: 0;
+  font-size: var(--font-size-14);
+  color: var(--text-secondary);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: var(--spacing-20) var(--spacing-24);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-16);
+  font-weight: var(--font-semibold);
+}
+
+.rows {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--spacing-8) var(--spacing-16);
+  margin: 0;
+  font-size: var(--font-size-15);
+}
+
+.rows dt {
+  color: var(--text-secondary);
+}
+
+.rows dd {
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-16);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-13);
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--spacing-8);
+  justify-content: flex-end;
+}
+
+.petCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding: var(--spacing-16);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-12);
+}
+
+.petRainbow {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+}
+
+.petHead {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-weight: var(--font-semibold);
+}
+
+.petMeta {
+  font-size: var(--font-size-14);
+  color: var(--text-secondary);
+}
