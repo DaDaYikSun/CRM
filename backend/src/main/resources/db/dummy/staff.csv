@@ -1,0 +1,6 @@
+login_id,name,role,is_active
+demo_admin,정원장,ADMIN,1
+demo_lead,한실장,ADMIN,1
+demo_desk1,오데스크,DESK,1
+demo_desk2,서데스크,DESK,1
+demo_groomer,윤미용,GROOMER,1
