@@ -673,7 +673,7 @@ for (const service of ['VACCINE', 'GROOMING']) {
 {
   const regOf = new Map(pets.map((p) => [p.pet_id, p._reg]));
   const streams = new Map();
-  const openAfterEnd = [];
+  const openAfterEnd = new Map(); // 아이 · 서비스 · 종류별 '데이터 끝 뒤 예정' 주기의 연락 (주기마다 상태가 따로다)
   for (const c of cycles) {
     const k = `${c.p.pet_id}|${c.service}|${c.code}`;
     if (!streams.has(k)) streams.set(k, []);
@@ -684,7 +684,11 @@ for (const service of ['VACCINE', 'GROOMING']) {
     let i = from;
     while (i < list.length && list[i].visitAt && x.contacted_at >= list[i].visitAt) i++;
     if (i < list.length) list[i].rows.push(x);
-    else openAfterEnd.push(x); // 데이터 끝 뒤 예정의 열린 주기에 붙는다 (방문 없음, 전환 아님)
+    else { // 데이터 끝 뒤 예정의 열린 주기에 붙는다 (방문 없음, 전환 아님)
+      const k = `${x.pet_id}|${list[0].service}|${list[0].code}`;
+      if (!openAfterEnd.has(k)) openAfterEnd.set(k, []);
+      openAfterEnd.get(k).push(x);
+    }
   };
   const inData = (x) => !before(x.contacted_at.slice(0, 10), regOf.get(x.pet_id));
   for (const list of streams.values()) {
@@ -697,7 +701,8 @@ for (const service of ['VACCINE', 'GROOMING']) {
   }
   const stat = {};
   const out = [];
-  for (const c of [...cycles, { rows: openAfterEnd, visit: null, visitAt: null, due: END }]) {
+  const afterEnd = [...openAfterEnd.values()].map((rows) => ({ rows, visit: null, visitAt: null, due: END }));
+  for (const c of [...cycles, ...afterEnd]) {
     // 적재기가 넣는 순서 (DummyTimeline.merge: 시각 → 연락 묶음 → 아이 번호). 같은 시각이면 뒤에 넣은 행이 contact_log_id가 크다
     const ordered = c.rows.sort((p1, p2) => (p1.contacted_at !== p2.contacted_at ? (p1.contacted_at < p2.contacted_at ? -1 : 1)
       : p1.contact_group_id !== p2.contact_group_id ? (p1.contact_group_id < p2.contact_group_id ? -1 : 1) : p1.pet_id - p2.pet_id));
