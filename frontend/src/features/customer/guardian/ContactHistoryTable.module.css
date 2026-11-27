@@ -40,3 +40,10 @@
   gap: var(--spacing-12);
   font-size: var(--font-size-14);
 }
+
+/* 첫 조회 중 자리 (문구 없음) */
+.skeleton {
+  min-height: 96px;
+  border-radius: var(--radius-12);
+  background: var(--bg-subtle);
+}
