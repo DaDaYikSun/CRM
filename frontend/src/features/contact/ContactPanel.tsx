@@ -123,7 +123,8 @@ export function ContactPanel({
 
   function requestSave() {
     if (!panel) return;
-    if (isSecondDayNoAnswer(items, results, today)) {
+    // 저장을 누른 때의 한국 날짜로 본다: 패널을 연 채 자정을 넘겨도 2일차 확인 창을 놓치지 않게 (PR #225 리뷰)
+    if (isSecondDayNoAnswer(items, results, todayKst())) {
       dialog.current?.showModal();
       return;
     }
