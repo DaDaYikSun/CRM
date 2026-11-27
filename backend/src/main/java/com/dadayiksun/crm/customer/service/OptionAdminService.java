@@ -76,8 +76,11 @@ public class OptionAdminService {
     }
 
     public BreedItem updateBreed(long breedId, BreedInput in) {
-        BreedItem before = breeds().stream().filter(b -> b.breedId() == breedId).findFirst()
-                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
+        // FOR UPDATE: 같은 행의 동시 PATCH가 서로의 저장을 덮어쓰지 않게, 읽기 · 이력 · UPDATE를 한 잠금 안에 둔다 (PR #256 리뷰)
+        BreedItem before = jdbc.query("SELECT breed_id, name, default_coat_type_id, sort_order, is_active FROM breed"
+                + " WHERE breed_id = ? FOR UPDATE", (rs, i) -> new BreedItem(rs.getLong("breed_id"), rs.getString("name"),
+                rs.getObject("default_coat_type_id", Long.class), rs.getInt("sort_order"), rs.getBoolean("is_active")), breedId)
+                .stream().findFirst().orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         String name = in.name() == null ? before.name() : name(in.name(), BREED_NAME_MAX);
         Long coat = Boolean.TRUE.equals(in.clearDefaultCoatType()) ? null
                 : in.defaultCoatTypeId() == null ? before.defaultCoatTypeId() : coatTypeIdOrNull(in.defaultCoatTypeId());
@@ -136,8 +139,14 @@ public class OptionAdminService {
 
     /** 이름 · 순서 · 숨기기만. 간격은 B-02에서 (예정일 다시 계산, #175) */
     public CoatTypeItem updateCoatType(long coatTypeId, CoatTypeInput in) {
-        CoatTypeItem before = coatTypes().stream().filter(c -> c.coatTypeId() == coatTypeId).findFirst()
-                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
+        // FOR UPDATE: 같은 행의 동시 PATCH가 서로의 저장을 덮어쓰지 않게 (PR #256 리뷰).
+        // 이름 검사(requireUniqueCoatName)가 표 전체를 잠그므로, 교착을 피하려고 처음부터 표 전체를 같은 순서로 잠근다
+        jdbc.queryForList("SELECT coat_type_id FROM coat_type ORDER BY coat_type_id FOR UPDATE", Long.class);
+        CoatTypeItem before = jdbc.query("SELECT coat_type_id, code, name, default_groom_weeks, sort_order, is_active"
+                + " FROM coat_type WHERE coat_type_id = ? FOR UPDATE", (rs, i) -> new CoatTypeItem(rs.getLong("coat_type_id"),
+                rs.getString("code"), rs.getString("name"), rs.getInt("default_groom_weeks"), rs.getInt("sort_order"),
+                rs.getBoolean("is_active")), coatTypeId)
+                .stream().findFirst().orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         String name = in.name() == null ? before.name() : name(in.name(), COAT_NAME_MAX);
         int sort = in.sortOrder() == null ? before.sortOrder() : sortOrder(in.sortOrder());
         boolean active = in.isActive() == null ? before.isActive() : in.isActive();
@@ -192,8 +201,13 @@ public class OptionAdminService {
         }
     }
 
+    /**
+     * coat_type.name에는 유일 키가 없다(DB 4-3). 잠금 조회(FOR UPDATE)로 읽어 같은 이름 검사 · 저장을 한 줄로 세운다:
+     * name에 인덱스가 없어 표 전체를 잠그므로, 동시에 같은 이름으로 바꾸는 두 요청 중 뒤의 것이 앞의 커밋을 보고 막힌다 (PR #256 리뷰).
+     * 털 유형은 몇 개뿐이라 잠금 범위가 작다. shortcut: 행이 많아지면 새 마이그레이션으로 name 유일 키를 건다
+     */
     private void requireUniqueCoatName(String name, Long exceptId) {
-        Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM coat_type WHERE name = ? AND coat_type_id <> ?",
+        Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM coat_type WHERE name = ? AND coat_type_id <> ? FOR UPDATE",
                 Integer.class, name, exceptId == null ? -1L : exceptId);
         if (n != null && n > 0) {
             throw new ApiException(ErrorCode.OPTION_DUPLICATE);

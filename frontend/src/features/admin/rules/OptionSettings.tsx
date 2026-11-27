@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -21,6 +21,7 @@ import {
 import { useLeaveConfirm } from "@/lib/hooks/useLeaveConfirm";
 import { useQueryWithRetry } from "@/lib/hooks/useQueryWithRetry";
 import { useSave } from "@/lib/hooks/useSave";
+import { mergeDrafts } from "./mergeDrafts";
 import { isInvalid, toInt } from "./ruleForm";
 import styles from "./AdminForm.module.css";
 
@@ -71,11 +72,20 @@ export function OptionSettings() {
   const breedSave = useSave();
   const coatSave = useSave();
 
+  // 다시 불러와도 다른 줄의 저장 안 한 입력은 남긴다 (PR #256 리뷰)
+  const prevBreeds = useRef<BreedItem[] | null>(null);
+  const prevCoats = useRef<CoatTypeItem[] | null>(null);
   useEffect(() => {
-    if (breeds) setBreedDrafts(Object.fromEntries(breeds.map((b) => [b.breedId, breedDraft(b)])));
+    if (!breeds) return;
+    const before = prevBreeds.current;
+    setBreedDrafts((drafts) => mergeDrafts(before, breeds, drafts, (b) => b.breedId, breedDraft));
+    prevBreeds.current = breeds;
   }, [breeds]);
   useEffect(() => {
-    if (coats) setCoatDrafts(Object.fromEntries(coats.map((c) => [c.coatTypeId, coatDraft(c)])));
+    if (!coats) return;
+    const before = prevCoats.current;
+    setCoatDrafts((drafts) => mergeDrafts(before, coats, drafts, (c) => c.coatTypeId, coatDraft));
+    prevCoats.current = coats;
   }, [coats]);
 
   const dirty =
