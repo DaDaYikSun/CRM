@@ -27,11 +27,11 @@ public class JdbcVisitRepository implements VisitRepository {
     }
 
     @Override
-    public Optional<String> petStatus(long petId) {
+    public Optional<Pet> pet(long petId) {
         // FOR UPDATE: 같은 아이의 방문 저장을 트랜잭션 끝까지 한 줄로 세워, 동시에 온 같은 날 같은 종류 두 건이
         // 둘 다 existsSameDay를 통과하지 않게 한다 (PR #220 리뷰). 다른 아이 저장은 기다리지 않는다
-        return jdbc.queryForList("SELECT status FROM pet WHERE pet_id = :id FOR UPDATE", Map.of("id", petId),
-                String.class).stream().findFirst();
+        return jdbc.query("SELECT status, birth_date FROM pet WHERE pet_id = :id FOR UPDATE", Map.of("id", petId),
+                (rs, i) -> new Pet(rs.getString("status"), rs.getDate("birth_date").toLocalDate())).stream().findFirst();
     }
 
     @Override

@@ -1,7 +1,7 @@
 // S-09 방문 기록 모달 규칙 (FR-VIS-001 · 002, 화면 설계 SCR-S09). 문구는 정책 4-2 · 4-4 그대로.
 import type { VisitServiceType } from "@/lib/api/visit";
 
-export const MEMO_MAX = 200;
+export const MEMO_MAX = 200; // 서버 VisitService.MEMO_MAX · visit.memo VARCHAR(200)과 같다 (POL-DATA-010)
 
 export const VISIT_COPY = {
   guide: {

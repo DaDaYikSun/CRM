@@ -12,8 +12,12 @@ import java.util.Optional;
  */
 public interface VisitRepository {
 
-    /** 아이 상태(ACTIVE · RAINBOW). 없는 아이면 빈 값. 저장 트랜잭션 동안 그 아이 행을 잠근다 (같은 날 중복 검사용) */
-    Optional<String> petStatus(long petId);
+    /** 아이 상태 · 생년월일. 없는 아이면 빈 값. 저장 트랜잭션 동안 그 아이 행을 잠근다 (같은 날 중복 검사용) */
+    Optional<Pet> pet(long petId);
+
+    /** @param status ACTIVE · RAINBOW */
+    record Pet(String status, LocalDate birthDate) {
+    }
 
     /** 지금 고를 수 있는 접종 종류인지 (있고 is_active = 1, 선택지 C5와 같은 조건) */
     boolean isSelectableVaccineType(long vaccineTypeId);

@@ -38,6 +38,7 @@ class VisitServiceTest {
     private static final CurrentStaff DESK = new CurrentStaff(3L, Role.DESK);
     private static final CurrentStaff GROOMER = new CurrentStaff(4L, Role.GROOMER);
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 25);
+    private static final LocalDate BIRTH = LocalDate.of(2024, 5, 10);
 
     private FakeVisits visits;
     private List<Object> events;
@@ -115,6 +116,20 @@ class VisitServiceTest {
     }
 
     @Test
+    void 생년월일보다_이른_날짜는_400_접종_미용_모두() {
+        assertValidation(vaccine(COMBO, BIRTH.minusDays(1)), DESK, "visitDate");
+        assertValidation(grooming(BIRTH.minusDays(1), null), DESK, "visitDate");
+        service.record(PET, vaccine(COMBO, BIRTH), DESK); // 생일 당일은 된다
+        assertThat(visits.rows).hasSize(1);
+    }
+
+    @Test
+    void 미용사의_접종은_아이가_없어도_403_권한_먼저() {
+        assertThatThrownBy(() -> service.record(999L, vaccine(COMBO, TODAY), GROOMER))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
     void 접종_종류가_없거나_고를_수_없는_종류면_400() {
         assertValidation(vaccine(null, TODAY), DESK, "vaccineTypeId");
         assertValidation(vaccine(99L, TODAY), DESK, "vaccineTypeId");
@@ -173,14 +188,15 @@ class VisitServiceTest {
                 .extracting(l -> l.summary()).containsExactly("종합백신", "미용");
     }
 
-    /** 아이 12(ACTIVE) · 13(RAINBOW), 고를 수 있는 접종 종류 1 · 2 */
+    /** 아이 12(ACTIVE) · 13(RAINBOW), 둘 다 2024-05-10생. 고를 수 있는 접종 종류 1 · 2 */
     static class FakeVisits implements VisitRepository {
         final List<Row> rows = new ArrayList<>();
         final List<LineRow> lines = new ArrayList<>();
-        private final Map<Long, String> pets = new HashMap<>(Map.of(PET, "ACTIVE", RAINBOW_PET, "RAINBOW"));
+        private final Map<Long, Pet> pets = new HashMap<>(Map.of(PET, new Pet("ACTIVE", BIRTH),
+                RAINBOW_PET, new Pet("RAINBOW", BIRTH)));
 
         @Override
-        public Optional<String> petStatus(long petId) {
+        public Optional<Pet> pet(long petId) {
             return Optional.ofNullable(pets.get(petId));
         }
 
