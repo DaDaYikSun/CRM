@@ -15,6 +15,7 @@ backend/
 │  ├─ dashboard/     DASH 지표 · 기간 계산
 │  ├─ report/        RPT  일정 요약 리포트
 │  ├─ admin/         ADM  백오피스 화면 · Controller (저장 규칙은 값의 주인 서비스, API 설계 4-2)
+│  ├─ data/          DATA 시연용 더미 데이터 적재 (local · demo 프로필만, #147). 여러 도메인 테이블에 바로 쓰는 K17 예외
 │  ├─ view/          조립 자리 [제안, #142]: 여러 도메인을 합치는 화면 응답 (아래 '조립 자리')
 │  └─ common/        COM  공통 응답 · 예외 · 시간(Asia/Seoul) · 감사 컬럼 (아래 'common에 두는 것')
 │     (업무 패키지 안은 controller / service / repository / domain / dto)

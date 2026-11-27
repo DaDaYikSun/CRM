@@ -51,3 +51,6 @@ crm:
     admin-password: ${SEED_ADMIN_PASSWORD:}
     desk-password: ${SEED_DESK_PASSWORD:}
     groomer-password: ${SEED_GROOMER_PASSWORD:}
+  dummy:
+    # 시연용 더미 직원 5명이 같이 쓰는 비밀번호 (#147). local · demo 프로필에서만 쓰고, 비면 더미 데이터를 넣지 않는다
+    staff-password: ${DUMMY_STAFF_PASSWORD:}

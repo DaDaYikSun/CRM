@@ -32,6 +32,15 @@ CSV는 손으로 고치지 않는다. 값을 바꾸려면 생성 스크립트를
 - 참/거짓은 `1` / `0`, 빈 값은 빈 칸이다. 날짜는 `YYYY-MM-DD`, 일시는 `YYYY-MM-DD HH:MM:SS`(KST).
 - 전화번호는 `0100xxxxxxx` 형식이며 010-0000-0000 ~ 010-0999-9999 범위만 쓴다 (POL-DATA-001).
 
+## 넣기 (적재기, `com.dadayiksun.crm.data.DummyDataLoader`)
+
+1. `backend/.env`에 `DB_*`와 `DUMMY_STAFF_PASSWORD`(더미 직원 5명이 같이 쓰는 비밀번호)를 채운다.
+2. local 프로필로 켠다: `cd backend && ./gradlew bootRun --args='--spring.profiles.active=local'`
+3. 보호자가 한 명도 없을 때만 넣는다. 다시 켜도 두 번 들어가지 않는다. 처음부터 다시 넣으려면 DB를 비운다.
+4. 운영(프로필 없음)에서는 적재기가 없다 (K8).
+
+지금 넣는 것: 직원 · 보호자 · 반려견 · 방문(접종 · 미용). 아래 2 · 3 · 4(예정 일정 · 누락 판정 · 연락 기록)는 #144 2단계 뒤에 같은 적재기에 더한다. `contact_log.schedule_id`가 필수라 예정 일정 없이는 연락 기록을 넣을 수 없다.
+
 ## 적재기가 할 일
 
 1. 직원 → 보호자 → 반려견 → 접종 · 미용 기록 순서로 넣는다. `guardian_id` · `pet_id`는 CSV 안 번호라, 넣을 때 DB가 준 id를 CSV 번호별로 기록해 두고 반려견 · 기록 · 연락의 참조를 그 id로 바꿔 넣는다. local · demo DB가 비어 있다고 가정하지 않는다 (이미 보호자가 있거나 자동 증가 번호가 진행됐을 수 있음).
