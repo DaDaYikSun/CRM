@@ -149,8 +149,10 @@ const bad = [...vac, ...gro, ...con].filter((r) => {
   return d < p.birth_date || (p.rainbow_at && d >= p.rainbow_at.slice(0, 10)) || d > END;
 });
 check('생년월일 전 · 무지개다리 뒤 · 미래 기록 없음', bad.length === 0, `${bad.length}건`);
-const early = [...vac, ...gro].filter((r) => dateOf(r) < START_BASE).length;
-check('기록은 기간 직전 기준 접종부터 (2024-07-01 이후)', early === 0, `${early}건`);
+// 등록 전 과거 기록(등록할 때 옮겨 적은 접종 이력)은 그 전이어도 된다. 예정일 계산이 기초접종을 다 채운 것으로 보게 하려는 것 (K24, #147)
+const regOf = (r) => petMap.get(r.pet_id).created_at.slice(0, 10);
+const early = [...vac, ...gro].filter((r) => dateOf(r) < START_BASE && dateOf(r) >= regOf(r)).length;
+check('등록 뒤 기록은 기간 직전 기준 접종부터 (2024-07-01 이후)', early === 0, `${early}건`);
 
 // ---- 무지개다리 보류 (POL-TGT-003): 같은 집 아이는 건넌 날부터 RAINBOW_HOLD_DAYS일 동안 연락하지 않는다
 const holdHit = con.filter((c) => rainbow.some((r) => r.guardian_id === c.guardian_id && r.pet_id !== c.pet_id

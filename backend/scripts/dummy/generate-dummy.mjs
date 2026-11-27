@@ -11,7 +11,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { formatPhone, seedCoatGroomDays, seedInt, seedSetting } from './seed-settings.mjs';
+import { formatPhone, seedCoatGroomDays, seedInt, seedSetting, seedVaccineRules } from './seed-settings.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = resolve(HERE, '../../src/main/resources/db/dummy');
@@ -39,11 +39,9 @@ const VACCINE_NAME = {
   INFLUENZA: '인플루엔자', HEARTWORM: '심장사상충 예방약', DEWORM: '구충제',
 };
 
-// 누락 경향 (매뉴얼 3-2 · 3-4): 도입 전 30% 안팎, 도입 뒤 15~20%, 늦었지만 14일 안 15%
-const MISS_RATE_BEFORE = 0.30;
-const MISS_RATE_AFTER = 0.17;
+// 누락 경향 (매뉴얼 3-2 · 3-4): 도입 전 30% 안팎, 도입 뒤 15~20% (아이 기준). 주기마다 확률은 아래 CYCLE_MISS. 늦었지만 14일 안 15%
 const LATE_WITHIN_RATE = 0.15;
-const CONTACT_THIS_WEEK_SHARE = 0.8; // 도입 뒤 제때 올 아이 중 예정일 전에 미리 연락한 비율 (이번 주 탭)
+const CONTACT_THIS_WEEK_SHARE = 0.3; // 도입 뒤 제때 올 아이 중 예정일 전에 미리 연락한 비율 (이번 주 탭)
 const REGULAR_GROOMER_MISS_FACTOR = 0.55; // 미용 꼬박꼬박 오는 아이는 접종 누락이 낮다 (가설 3)
 
 // 연락 결과 비율과 전환 목표 (매뉴얼 3-3)
@@ -381,20 +379,86 @@ function contactFor(p, service, code, due, day) {
   return CONVERT_RATE[result];
 }
 
+// ---------------------------------------------------------------------
+// 예정일 계산: 백엔드 cycle과 같은 규칙 (DB 설계 4-7 · 5-1, K24, PR #202)
+// 적재기는 방문을 시간 순서로 넣으며 cycle을 부른다. 여기서도 같은 규칙으로 예정일을 내야
+// 생성 때 의도한 '제때 · 늦음 · 누락'이 적재 뒤 저장된 missed_at과 같아진다.
+// ---------------------------------------------------------------------
+const VACCINE_RULES = seedVaccineRules(); // 마이그레이션(V2 · V4 …)의 vaccine_rule 행
+const MAJOR = ['DHPPL', 'RABIES']; // 주요 접종 (#59, 누락률에 넣음)
+
+/** VaccineDueDateCalculator.nextDueDate + SchedulePlanner.nextVaccineDue (기록 없으면 등록일보다 이르지 않게) */
+function nextVaccineDue(p, code, doses) {
+  const rules = VACCINE_RULES[code];
+  if (!rules) return null;
+  if (!doses.length) return maxDate(addDays(p.birth_date, rules[0].from), p._reg);
+  const last = doses[doses.length - 1];
+  let remaining = doses.length;
+  for (let i = 0; i < rules.length; i++) {
+    const row = rules[i];
+    if (row.count === null) continue;
+    if (remaining < row.count) return addDays(last, row.interval);
+    if (remaining === row.count) {
+      const nextCounted = rules.slice(i + 1).find((r) => r.count !== null);
+      if (nextCounted) return addDays(last, nextCounted.interval);
+      if (i + 1 < rules.length) return addDays(last, rules[i + 1].interval);
+      break;
+    }
+    remaining -= row.count;
+  }
+  const age = diffDays(p.birth_date, last);
+  const repeating = rules.filter((r) => r.count === null);
+  if (!repeating.length) return null;
+  let chosen = repeating[0];
+  for (const r of repeating) {
+    if (r.from <= age && (r.to === null || age < r.to)) return addDays(last, r.interval);
+    if (r.from <= age) chosen = r;
+  }
+  return addDays(last, chosen.interval);
+}
+
+/** GroomIntervalCalculator + SchedulePlanner.nextGroom: 최근 5건 간격 중 기본 간격 2배 이하의 중앙값, 2회 미만이면 기본 간격 */
+function nextGroomDue(p, dates) {
+  const def = COAT_DEFAULT_DAYS[p.coat_type_code];
+  const uniq = [...new Set(dates)].sort();
+  let days = def;
+  if (uniq.length >= 2) {
+    const recent = uniq.slice(-5);
+    const gaps = [];
+    for (let i = 1; i < recent.length; i++) { const g = diffDays(recent[i - 1], recent[i]); if (g <= def * 2) gaps.push(g); }
+    if (gaps.length) {
+      gaps.sort((a, b) => a - b);
+      const n = gaps.length;
+      days = n % 2 ? gaps[(n - 1) / 2] : Math.floor((gaps[n / 2 - 1] + gaps[n / 2] + 1) / 2);
+    }
+  }
+  return addDays(uniq.length ? uniq[uniq.length - 1] : p._reg, days);
+}
+
+// 주기마다 누락 확률. 지표는 아이 기준(기간 안 주기 중 하나라도 누락이면 누락, T15)이라
+// 주기 하나의 확률은 매뉴얼 목표(도입 전 30% 안팎 · 도입 뒤 15~20%)보다 낮게 둔다. 맞춘 값은 끝에 출력한다.
+const CYCLE_MISS = {
+  VACCINE: { before: 0.17, after: 0.22 },
+  GROOMING: { before: 0.02, after: 0.03 },
+};
+const JUDGE_DAY = addDays(END, 1); // 적재 뒤 판정 작업이 도는 날 (END 다음 날로 본다)
+const BASELINE_FROM = '2024-07-01'; // 등록 뒤 기록은 이날부터 (기간 직전 기준 접종)
+const GROOM_CAP = 10; // 매뉴얼 2장: 미용 오는 아이마다 3~10회
+const cycles = []; // { p, service, code, due, visit } 생성 때 기대 누락률을 세는 데 쓴다
+
 /**
- * 예정 하나(due)에 대한 실제 방문일을 정한다. 기간 밖이거나 안 오면 null.
+ * 예정 하나(due)에 대한 실제 방문일을 정한다. 안 오면 null.
  * 도입 뒤 예정은 제때 안 왔으면 연락하고, 연락 결과에 따라 기준(14일) 안에 오게 한다.
  */
 function outcome(p, service, code, due, missBase) {
   const after = !before(due, CRM_START);
-  let missRate = after ? MISS_RATE_AFTER : MISS_RATE_BEFORE;
-  missRate *= missBase;
+  let missRate = CYCLE_MISS[service][after ? 'after' : 'before'] * missBase;
   if (p._groom === 'REGULAR' && service === 'VACCINE') missRate *= REGULAR_GROOMER_MISS_FACTOR;
   const r = rnd();
   let visit;
   if (r < missRate) visit = chance(0.55) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 1, 90)) : null; // 누락 (늦게 오거나 안 옴)
   else if (r < missRate + LATE_WITHIN_RATE) visit = addDays(due, randInt(1, MISS_THRESHOLD_DAYS)); // 늦었지만 기준 안
-  else visit = addDays(due, randInt(-7, 0)); // 제때
+  else visit = addDays(due, randInt(-3, 0)); // 제때
 
   // 도입 뒤: 예정일까지 안 왔으면 데스크가 연락 (오늘 탭)
   const notYet = visit === null || before(due, visit);
@@ -402,16 +466,13 @@ function outcome(p, service, code, due, missBase) {
     const day = addDays(due, randInt(0, 2));
     if (!before(END, day) && !onHold(p, day)) {
       const conv = contactFor(p, service, code, due, day);
+      // 연락이 재방문으로 이어지면 기준 안에 온다. 이어지지 않으면 원래 정해진 대로 (연락 때문에 더 늦어지지는 않는다)
       if (chance(conv)) visit = addDays(day, randInt(1, Math.max(1, Math.min(12, diffDays(day, addDays(due, MISS_THRESHOLD_DAYS))))));
-      else if (visit !== null && !before(addDays(due, MISS_THRESHOLD_DAYS), visit)) visit = chance(0.5) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 1, 60)) : null;
     }
   } else if (after && !notYet && canContact(p._owner) && inData(due) && chance(CONTACT_THIS_WEEK_SHARE)) {
     // 도입 뒤: 이번 주 탭 — 예정일 전에 미리 연락 (예정일까지 아직 안 온 아이)
     const day = addDays(due, -randInt(1, 5));
-    if (inData(day) && before(day, visit) && !onHold(p, day)) {
-      const conv = contactFor(p, service, code, due, day);
-      if (!chance(conv)) visit = chance(0.6) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 1, 60)) : null; // 거절 · 다른 병원 등은 안 옴
-    }
+    if (inData(day) && before(day, visit) && !onHold(p, day)) contactFor(p, service, code, due, day); // 제때 올 아이라 방문은 그대로
   } else if (!after && notYet && canContact(p._owner) && chance(0.03) && inData(due)) {
     const day = addDays(due, randInt(0, 3));
     if (!onHold(p, day)) contactFor(p, service, code, due, day); // 도입 전: 연락 기록이 거의 없음
@@ -420,155 +481,121 @@ function outcome(p, service, code, due, missBase) {
   return visit;
 }
 
-/** 반복 예정(간격 일정)을 데이터 기간 끝까지 이어 간다 */
-function runSeries(p, service, code, firstDue, intervalFn, missBase = 1) {
-  let due = firstDue;
+/**
+ * 한 아이 · 서비스(· 접종 종류)의 주기를 등록일부터 데이터 끝까지 이어 간다. 적재기가 cycle로 만들 주기와 같다.
+ * history: 등록 전 과거 기록 (이미 넣은 방문일, 오름차순)
+ * opts.missBase: 누락 확률 배수, opts.stop(n): 방문 n번째 뒤 그만 오는지 (미용 0~1회 아이)
+ */
+function simulate(p, service, code, history, opts = {}) {
+  const dates = [...history];
+  const nextDue = () => (service === 'GROOMING' ? nextGroomDue(p, dates) : nextVaccineDue(p, code, dates));
+  const record = (d) => { if (service === 'VACCINE') addVaccination(p, code, d); else addGrooming(p, d); dates.push(d); };
+  let due = nextDue();
+  let visits = 0;
   let guard = 0;
-  while (!before(END, due) && guard++ < 400) {
-    const v = outcome(p, service, code, due, missBase);
-    if (v === null) { // 안 옴: 다음 예정은 1주기 뒤로 넘어가지 않고 그대로 열려 있다. 이후 늦게라도 올 수 있게 한 번 더 시도
+  while (due && !before(END, due) && guard++ < 400) {
+    if (!alive(p, due)) break;
+    if (opts.stop?.(visits)) { cycles.push({ p, service, code, due, visit: null }); break; }
+    // 기록 시작일(floor) 전에 예정이 된 주기는 기록을 두지 않고, 시작일 무렵 늦게 온 것으로 닫는다 (그 전 기간의 누락)
+    const floor = opts.floor ?? BASELINE_FROM;
+    if (before(due, floor)) {
+      const v = randDate(floor, minDate(addDays(floor, 30), END));
+      cycles.push({ p, service, code, due, visit: v });
+      record(v);
+      visits++;
+      due = nextDue();
+      continue;
+    }
+    let v = opts.forceLate?.(visits) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 20, MISS_THRESHOLD_DAYS + 60)) : outcome(p, service, code, due, opts.missBase ?? 1);
+    if (v && (before(END, v) || !alive(p, v))) v = null;
+    if (v && before(v, floor)) v = floor; // 제때(예정일 며칠 전) 방문이 기록 시작일 앞으로 가지 않게
+    if (v === null) {
+      // 안 옴: 주기는 열린 채 판정된다. 한참 뒤 늦게라도 오는 아이도 있다
       const late = addDays(due, randInt(60, 200));
       if (!before(END, late) && alive(p, late) && chance(0.35)) {
-        if (service === 'VACCINE') addVaccination(p, code, late); else addGrooming(p, late);
-        due = addDays(late, intervalFn());
+        cycles.push({ p, service, code, due, visit: late });
+        record(late);
+        visits++;
+        due = nextDue();
         continue;
       }
+      cycles.push({ p, service, code, due, visit: null });
       break;
     }
-    if (inData(v) || before(v, START)) {
-      if (service === 'VACCINE') addVaccination(p, code, v); else addGrooming(p, v);
-    }
-    due = addDays(v, intervalFn());
+    cycles.push({ p, service, code, due, visit: v });
+    record(v);
+    visits++;
+    due = nextDue();
   }
+}
+
+/** 등록 전 과거 기록 (등록할 때 이전 병원 · 수첩에서 옮겨 적은 접종). 계산이 기초접종을 다 채운 것으로 보게 한다 (K24) */
+function priorVaccines(p) {
+  const reg = p._reg;
+  const out = { DHPPL: [], RABIES: [] };
+  const addIf = (code, d) => { if (before(d, reg) && !before(d, p.birth_date)) out[code].push(d); };
+  // 종합백신 기초 5회 (6차 접종표 1~5차), 1살 넘었으면 등록 전 1년 안 추가접종 1회
+  for (let k = 0; k < 5; k++) addIf('DHPPL', addDays(p.birth_date, 42 + 14 * k + randInt(0, 3)));
+  if (out.DHPPL.length === 5 && diffDays(p.birth_date, reg) > 365 + 98) {
+    addIf('DHPPL', randDate(maxDate(addDays(reg, -330), addDays(p.birth_date, 365)), addDays(reg, -15)));
+  }
+  // 광견병 1회 (등록 전 1년 안)
+  if (diffDays(p.birth_date, reg) > 112 + 15) {
+    addIf('RABIES', randDate(maxDate(addDays(reg, -330), addDays(p.birth_date, 112)), addDays(reg, -15)));
+  }
+  return out;
 }
 
 for (const p of pets) {
   const birth = p.birth_date;
-  const regFrom = maxDate(p._reg, START);
-  const baselineFrom = addDays(START, -330);
-  const baselineTo = addDays(START, -15);
-  const adultAtStart = before(addDays(birth, 365), START);
 
-  // 종합백신 (주요 접종). 기초 5회 2~3주 간격, 그 뒤 매년 (접종 규칙 표 1장 국내 관행). 방문 날짜는 14~21일 사이로 흔들린다
-  if (adultAtStart) {
-    const base = randDate(maxDate(baselineFrom, p._reg), baselineTo);
-    if (before(base, START)) addVaccination(p, 'DHPPL', base); // 기간 직전 기준 접종 1건 (계산 시작점)
-    runSeries(p, 'VACCINE', 'DHPPL', addDays(base, 365), () => 365);
-  } else {
-    let d = addDays(birth, randInt(42, 56));
-    let n = 0;
-    while (n < 5 && !before(END, d) && alive(p, d)) {
-      if (!before(d, regFrom)) addVaccination(p, 'DHPPL', d);
-      n++;
-      if (n < 5 && chance(0.06)) d = addDays(d, randInt(30, 60)); // 기초접종이 밀린 아이 (K24)
-      else d = addDays(d, randInt(14, 21));
-    }
-    if (n === 5) runSeries(p, 'VACCINE', 'DHPPL', addDays(d, 365 - randInt(14, 21)), () => 365);
+  // 주요 접종 (종합백신 · 광견병): 모든 아이. 등록 전 과거 기록을 먼저 두고 등록일부터 주기를 돈다
+  const prior = priorVaccines(p);
+  for (const code of MAJOR) {
+    for (const d of prior[code]) addVaccination(p, code, d);
+    simulate(p, 'VACCINE', code, prior[code]);
   }
 
-  // 광견병 (주요 접종). 생후 3개월 이상 1회, 그 뒤 매년
-  if (adultAtStart) {
-    const base = randDate(maxDate(baselineFrom, p._reg), baselineTo);
-    if (before(base, START)) addVaccination(p, 'RABIES', base);
-    runSeries(p, 'VACCINE', 'RABIES', addDays(base, 365), () => 365);
-  } else {
-    const first = chance(0.05) ? addDays(birth, randInt(60, 85)) : addDays(birth, randInt(90, 120)); // 일부는 3개월 전에 맞음
-    if (!before(END, first) && alive(p, first)) {
-      addVaccination(p, 'RABIES', first);
-      runSeries(p, 'VACCINE', 'RABIES', addDays(first, 365), () => 365);
+  // 심장사상충 · 구충제: 규칙이 있어 모든 아이에게 예정이 생긴다. 병원에서 받는 아이(약 55% · 35%)는 주기대로 오고,
+  // 나머지는 첫 예정부터 오지 않는다 (열린 주기가 판정됨, 주요 접종이 아니라 누락률에는 안 들어감)
+  for (const [code, share] of [['HEARTWORM', 0.55], ['DEWORM', 0.35]]) {
+    const uses = chance(share);
+    simulate(p, 'VACCINE', code, [], uses ? { missBase: 1.0, floor: START } : { stop: () => true });
+  }
+
+  // 선택 접종 (코로나 장염 · 켄넬코프 · 인플루엔자): 규칙 행은 #204 뒤에 들어와 지금은 예정이 생기지 않는다.
+  // 기록만 접종 규칙 표 1-1 · 3장 값(시작 나이, 2회 14일 간격)으로 둔다
+  for (const [code, startAge] of [['CORONA', 42], ['KENNEL', 70], ['INFLUENZA', 98]]) {
+    if (!chance(p._puppy ? 0.5 : 0.15)) continue;
+    let d = p._puppy ? addDays(birth, startAge + randInt(0, 3)) : randDate(maxDate(BASELINE_FROM, p._reg), addDays(END, -30));
+    for (let k = 0; k < 2 && !before(END, d) && alive(p, d); k++) {
+      if (!before(d, BASELINE_FROM)) addVaccination(p, code, d);
+      if (!p._puppy) break;
+      d = addDays(d, 14 + randInt(0, 3));
     }
   }
 
-  // 선택 접종: 어린 강아지 일부만 기초 2회 (코로나 장염 · 켄넬코프 · 인플루엔자)
-  if (!adultAtStart) {
-    for (const [code, startAge] of [['CORONA', 42], ['KENNEL', 42], ['INFLUENZA', 56]]) {
-      if (!chance(0.5)) continue;
-      let d = addDays(birth, startAge + randInt(0, 14));
-      for (let k = 0; k < 2 && !before(END, d) && alive(p, d); k++) {
-        addVaccination(p, code, d);
-        d = addDays(d, randInt(14, code === 'INFLUENZA' ? 28 : 21));
-      }
-    }
-  } else {
-    for (const code of ['CORONA', 'KENNEL', 'INFLUENZA']) {
-      if (!chance(0.15)) continue;
-      const base = randDate(maxDate(baselineFrom, p._reg), baselineTo);
-      if (before(base, START)) addVaccination(p, code, base);
-      runSeries(p, 'VACCINE', code, addDays(base, 365), () => 365, 1.2);
-    }
+  // 미용: 모든 아이에게 첫 미용 예정(등록일 + 털 유형 기본 간격)이 생긴다. 미용 안 오는 아이는 첫 예정부터 오지 않는다
+  if (!p._groom) { simulate(p, 'GROOMING', null, [], { stop: () => true }); continue; }
+  if (p._groom === 'FEW') { // 기록 0~1회
+    const once = chance(0.5);
+    simulate(p, 'GROOMING', null, [], { stop: (n) => n >= (once ? 1 : 0) });
+    continue;
   }
-
-  // 심장사상충 예방약: 병원에서 받는 아이 약 55%, 매월
-  if (chance(0.55)) {
-    const first = adultAtStart ? randDate(regFrom, addDays(regFrom, 40)) : addDays(birth, randInt(56, 70));
-    if (!before(END, first) && alive(p, first) && !before(first, START)) {
-      addVaccination(p, 'HEARTWORM', first);
-      runSeries(p, 'VACCINE', 'HEARTWORM', addDays(first, 30), () => 30, 1.0);
-    }
-  }
-
-  // 구충제: 약 35%. K23: 생후 8주까지 14일, 6개월까지 30일, 그 뒤 90일
-  if (chance(0.35)) {
-    if (adultAtStart) {
-      const first = randDate(regFrom, addDays(regFrom, 60));
-      if (!before(END, first) && alive(p, first)) {
-        addVaccination(p, 'DEWORM', first);
-        runSeries(p, 'VACCINE', 'DEWORM', addDays(first, 90), () => 90, 0.9);
-      }
-    } else {
-      let d = addDays(birth, randInt(14, 18));
-      while (!before(END, d) && alive(p, d) && diffDays(birth, d) < 182) {
-        if (!before(d, regFrom)) addVaccination(p, 'DEWORM', d);
-        d = addDays(d, diffDays(birth, d) < 56 ? 14 : 30);
-      }
-      if (diffDays(birth, d) >= 182) runSeries(p, 'VACCINE', 'DEWORM', d, () => 90, 0.9);
-    }
-  }
-
-  // 미용
-  if (p._groom) {
-    const base = COAT_DEFAULT_DAYS[p.coat_type_code];
-    const first = randDate(regFrom, addDays(regFrom, base));
-    if (before(END, first) || !alive(p, first)) continue;
-    if (p._groom === 'FEW') { if (chance(0.5)) addGrooming(p, first); continue; } // 기록 0~1회
-    addGrooming(p, first);
-    let bigGapDone = false;
-    const interval = () => {
-      if (p._groom === 'REGULAR') return base + randInt(-3, 3);
-      if (p._groom === 'JUMPY') {
-        if (!bigGapDone && chance(0.25)) { bigGapDone = true; return Math.round(base * (2.2 + rnd())); } // 한 번 크게 늦음 (다른 곳에서 미용)
-        return base + randInt(-5, 7);
-      }
-      return base + randInt(-8, 14);
-    };
-    runSeries(p, 'GROOMING', null, addDays(first, interval()), interval, 1.0);
-    // 미용 기록 3~10회 범위로 자른다 (매뉴얼 2장)
-    const mine = groomings.filter((g) => g.pet_id === p.pet_id);
-    if (mine.length > 10) {
-      const keep = new Set(mine.slice(-10));
-      for (let i = groomings.length - 1; i >= 0; i--) {
-        if (groomings[i].pet_id === p.pet_id && !keep.has(groomings[i])) groomings.splice(i, 1);
-      }
-    }
-  }
-}
-
-// 다두 가구: 한 번 연락으로 같은 집 아이가 함께 온 기록 (가설 2) — 형제 아이의 같은 날 미용을 추가
-for (const o of owners.filter((x) => multiOwners.has(x.guardian_id))) {
-  const kids = pets.filter((p) => p.guardian_id === o.guardian_id);
-  const g0 = groomings.filter((g) => g.pet_id === kids[0].pet_id && !before(g.visit_date, CRM_START));
-  if (g0.length && kids[1] && kids[1]._groom && chance(0.5)) {
-    const d = pick(g0).visit_date;
-    if (alive(kids[1], d) && !groomings.some((g) => g.pet_id === kids[1].pet_id && g.visit_date === d)) addGrooming(kids[1], d);
-  }
+  const bigGapAt = p._groom === 'JUMPY' ? randInt(1, 4) : -1; // 한 번 크게 늦음 (다른 곳에서 미용)
+  // 미용 기록이 10회를 넘지 않게 미용을 다니기 시작한 날을 정한다 (그 전 예정은 시작일 무렵 늦게 온 것으로 닫힘)
+  const def = COAT_DEFAULT_DAYS[p.coat_type_code];
+  simulate(p, 'GROOMING', null, [], {
+    floor: maxDate(maxDate(BASELINE_FROM, p._reg), addDays(END, -def * 7)),
+    missBase: p._groom === 'REGULAR' ? 0.4 : 1.0,
+    forceLate: (n) => n === bigGapAt,
+  });
 }
 
 // 다두 가구 묶음 연락 (매뉴얼 3-1 · 3-3, FR-TGT-002, 가설 2): 도입 뒤 미용 전화 예약(BOOKED) 한 번에
-// 같은 집 다른 아이도 함께 묶고, 두 아이가 같은 날 미용을 받은 기록을 만든다.
-// 묶음 행은 같은 contact_group_id · 보호자 · 연락 시각 · 방법 · 결과를 쓴다 (DB 설계 contact_log 묶음).
-// 앞 단계의 무작위 순서를 바꾸지 않도록 마지막에 덧붙인다.
+// 같은 집 다른 아이도 함께 묶는다. 묶음 행은 같은 contact_group_id · 보호자 · 연락 시각 · 방법 · 결과를 쓴다.
+// 묶는 아이는 그 연락 뒤 기준(MISS_THRESHOLD_DAYS) 안에 이미 미용을 받은 아이만 고른다 (방문을 새로 만들지 않아 주기 계산이 그대로).
 const GROUP_CONTACT_SHARE = 0.6;
-const GROOM_CAP = 10; // 매뉴얼 2장: 아이마다 미용 10회 이하
 for (const o of owners.filter((x) => multiOwners.has(x.guardian_id) && canContact(x))) {
   const kids = pets.filter((p) => p.guardian_id === o.guardian_id);
   const booked = contacts.filter((c) => c.guardian_id === o.guardian_id && c.service_type === 'GROOMING' && c.method === 'PHONE'
@@ -576,18 +603,42 @@ for (const o of owners.filter((x) => multiOwners.has(x.guardian_id) && canContac
   if (!booked.length || !chance(GROUP_CONTACT_SHARE)) continue;
   const c = pick(booked);
   const day = c.contacted_at.slice(0, 10);
-  const a = kids.find((k) => k.pet_id === c.pet_id);
-  // 예약으로 온 날: 연락 뒤 기준(MISS_THRESHOLD_DAYS) 안의 첫 미용
-  const visit = groomings.filter((g) => g.pet_id === a.pet_id && before(day, g.visit_date)
-    && !before(addDays(day, MISS_THRESHOLD_DAYS), g.visit_date)).map((g) => g.visit_date).sort()[0];
-  if (!visit) continue;
-  const b = kids.find((k) => k !== a && k._groom && alive(k, visit) && !onHold(k, day) && !before(day, k.birth_date)
-    && groomings.filter((g) => g.pet_id === k.pet_id).length < GROOM_CAP
+  const b = kids.find((k) => k.pet_id !== c.pet_id && alive(k, day) && !onHold(k, day)
+    && groomings.some((g) => g.pet_id === k.pet_id && before(day, g.visit_date) && !before(addDays(day, MISS_THRESHOLD_DAYS), g.visit_date))
     && !contacts.some((x) => x.contact_group_id === c.contact_group_id && x.pet_id === k.pet_id));
   if (!b) continue;
   contacts.push({ ...c, pet_id: b.pet_id });
-  if (!groomings.some((g) => g.pet_id === b.pet_id && g.visit_date === visit)) addGrooming(b, visit);
 }
+
+// 기대 누락률 (POL-MISS-003 · 004, T15): 서비스별, 기간 안에 예정일이 된 주기 중 결과가 정해진 것만, 아이 기준.
+// 적재 뒤 SQL 집계와 대조한다 (#157). 무지개다리 아이 · 주요 접종이 아닌 접종은 뺀다
+function expectedMissRate(service, from, to, only = () => true) {
+  const byPet = new Map();
+  for (const c of cycles) {
+    if (c.service !== service || c.p.status === 'RAINBOW' || !only(c.p)) continue;
+    if (service === 'VACCINE' && !MAJOR.includes(c.code)) continue;
+    if (before(c.due, from) || before(to, c.due)) continue;
+    const missed = c.visit ? before(addDays(c.due, MISS_THRESHOLD_DAYS), c.visit) : before(addDays(c.due, MISS_THRESHOLD_DAYS), JUDGE_DAY);
+    const decided = c.visit !== null || missed;
+    if (!decided) continue;
+    byPet.set(c.p.pet_id, (byPet.get(c.p.pet_id) ?? false) || missed);
+  }
+  const n = byPet.size;
+  const m = [...byPet.values()].filter(Boolean).length;
+  return { n, m, rate: n ? Math.round((1000 * m) / n) / 10 : 0 };
+}
+const lastBefore = addDays(CRM_START, -1);
+for (const service of ['VACCINE', 'GROOMING']) {
+  const pre = expectedMissRate(service, START, lastBefore);
+  const post = expectedMissRate(service, CRM_START, END);
+  console.log(`기대 누락률 ${service}: 도입 전 ${pre.rate}% (${pre.m}/${pre.n}), 도입 뒤 ${post.rate}% (${post.m}/${post.n})`);
+}
+// 미용을 다니는 아이만 (미용 안 오는 아이 · 0~1회 아이의 첫 미용 예정 누락을 뺀 값, 참고용)
+const groomers = (p) => p._groom && p._groom !== 'FEW';
+const gPre = expectedMissRate('GROOMING', START, lastBefore, groomers);
+const gPost = expectedMissRate('GROOMING', CRM_START, END, groomers);
+console.log(`  (미용 다니는 아이만: 도입 전 ${gPre.rate}% (${gPre.m}/${gPre.n}), 도입 뒤 ${gPost.rate}% (${gPost.m}/${gPost.n}))`);
+
 
 // 무지개다리 뒤 · 생년월일 전 기록은 지운다 (매뉴얼 4장)
 const petById = new Map(pets.map((p) => [p.pet_id, p]));
