@@ -23,6 +23,10 @@ public record MetricsPeriod(LocalDate from, LocalDate to) {
         if (!errors.isEmpty()) {
             throw invalid(errors);
         }
+        // 보낸 끝이 미래면 먼저 오늘로 자른다: to만 온 경우 빠진 from을 자른 달의 1일로 채우게 (PR #255 리뷰)
+        if (to != null && to.isAfter(today)) {
+            to = today;
+        }
         if (from == null && to == null) {
             from = today.withDayOfMonth(1);
             to = today.withDayOfMonth(today.lengthOfMonth());
