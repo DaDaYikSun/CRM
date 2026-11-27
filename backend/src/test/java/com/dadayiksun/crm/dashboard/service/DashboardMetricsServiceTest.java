@@ -93,10 +93,10 @@ class DashboardMetricsServiceTest {
     }
 
     @Test
-    void 기간을_보내지_않으면_이번_달로_센다() {
+    void 기간을_보내지_않으면_이번_달_오늘까지_센다() {
         MetricsResponse m = service.metrics(null, null);
         assertThat(m.from()).isEqualTo(LocalDate.of(2026, 11, 1));
-        assertThat(m.to()).isEqualTo(LocalDate.of(2026, 11, 30));
+        assertThat(m.to()).isEqualTo(LocalDate.of(2026, 11, 27)); // 오늘까지 (#176)
         assertThat(query.from).isEqualTo(LocalDate.of(2026, 11, 1));
     }
 
