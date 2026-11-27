@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -43,6 +43,12 @@ function Targets() {
   const [summary, setSummary] = useState<TargetSummary | null>(null);
   const [error, setError] = useState<Failure | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // [다시 시도]를 누르면 그 버튼이 사라지므로 포커스를 제목으로 옮겨 잃지 않게 한다 (PR #213 리뷰)
+  const retry = () => {
+    heading.current?.focus();
+    setAttempt((n) => n + 1);
+  };
   const [selected, setSelected] = useState<number | null>(null);
   const today = todayKst();
 
@@ -74,7 +80,9 @@ function Targets() {
 
   return (
     <section>
-      <h1>연락 대상</h1>
+      <h1 ref={heading} tabIndex={-1}>
+        연락 대상
+      </h1>
       <PageGuide screen="S-03" />
       <nav className={styles.tabs} aria-label="연락 대상 탭">
         {TABS.map((t) => {
@@ -93,7 +101,7 @@ function Targets() {
         })}
       </nav>
       {error && (
-        <ErrorState message={error.message} onRetry={error.retry ? () => setAttempt((n) => n + 1) : undefined} />
+        <ErrorState message={error.message} onRetry={error.retry ? retry : undefined} />
       )}
       {data && !hasRows && data.total === 0 && <p className={styles.empty}>{EMPTY[tab]}</p>}
       {data && hasRows && (

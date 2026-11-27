@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -21,6 +21,12 @@ function Results() {
   const [data, setData] = useState<PageData<SearchItem> | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // [다시 시도]를 누르면 그 버튼이 사라지므로 포커스를 제목으로 옮겨 잃지 않게 한다 (PR #213 리뷰)
+  const retry = () => {
+    heading.current?.focus();
+    setAttempt((n) => n + 1);
+  };
 
   useEffect(() => {
     let stale = false;
@@ -44,10 +50,12 @@ function Results() {
 
   return (
     <section>
-      <h1>통합 검색</h1>
+      <h1 ref={heading} tabIndex={-1}>
+        통합 검색
+      </h1>
       <PageGuide screen="S-05" />
       {failure && (
-        <ErrorState message={failure.message} onRetry={failure.retry ? () => setAttempt((n) => n + 1) : undefined} />
+        <ErrorState message={failure.message} onRetry={failure.retry ? retry : undefined} />
       )}
       {data && (
         <>
