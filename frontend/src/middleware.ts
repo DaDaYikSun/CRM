@@ -4,7 +4,7 @@ import type { CurrentStaff } from "@/lib/api/auth";
 import { LOAD_FAILED_MESSAGE } from "@/lib/api/client";
 
 // 화면 라우트 보호 (FR-AUTH-002, POL-ERR-004).
-// - 로그인이 없으면 /login
+// - 로그인이 없거나 새 비밀번호를 정해야 하면 /login
 // - 역할이 못 여는 주소면 권한 없음 안내 화면(/forbidden)을 같은 주소로 보여 준다
 // 안내용이다. API는 서버가 따로 막는다 (NFR-SEC-002).
 export const config = { matcher: ["/((?!api|_next|login|favicon.ico).*)"] };
@@ -30,6 +30,8 @@ export async function middleware(request: NextRequest) {
     return new NextResponse(LOAD_FAILED_MESSAGE, { status: 503 });
   }
   if (!staff) return NextResponse.redirect(new URL("/login", request.url));
+  // 임시 비밀번호로 로그인했으면 새 비밀번호를 정할 때까지 로그인 화면의 새 비밀번호 카드로 (#150, POL-ACC-010)
+  if (staff.mustChangePassword) return NextResponse.redirect(new URL("/login", request.url));
 
   const { pathname } = request.nextUrl;
   if (pathname === "/") return NextResponse.redirect(new URL(HOME_PATH[staff.role], request.url));
