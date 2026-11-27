@@ -119,6 +119,13 @@ export function ContactPanel({
 
   const items = panel?.pets.flatMap((p) => p.items) ?? [];
 
+  // 문자 키는 보낼 항목 목록에 묶는다: 목록이 바뀌면 새 키, 같은 목록을 다시 보내면 같은 키 (K15, PR #245 리뷰).
+  // 응답을 못 받은 뒤 목록이 바뀌었는데 같은 키로 보내면 서버가 처음 응답만 돌려줘 새 항목이 기록되지 않는다
+  const smsItemIds = items.map((i) => i.scheduleId).join(",");
+  useEffect(() => {
+    setSmsKey(newIdempotencyKey());
+  }, [smsItemIds]);
+
   function choose(next: Results) {
     setResults(next);
     if (!nextDateTouched) setNextDate(defaultNextContactDate(next, today));
@@ -322,12 +329,13 @@ export function ContactPanel({
               </label>
 
               {saveError && <Notice tone="danger">{saveError}</Notice>}
-              <Button type="submit" loading={saving} disabled={!canSave(items, results, memo)}>
+              {/* 결과 저장과 문자 보내기는 한쪽이 진행 중이면 다른 쪽을 끈다 (PR #245 리뷰) */}
+              <Button type="submit" loading={saving} disabled={smsSending || !canSave(items, results, memo)}>
                 연락 결과 저장
               </Button>
 
               {/* 수신 동의가 없으면 꺼지고 안내는 위 연락 방법 아래에 있다 (SCR-S04-03). 서버도 409로 막는다 */}
-              <Button variant="secondary" loading={smsSending} disabled={!g.smsAgreed} onClick={requestSms}>
+              <Button variant="secondary" loading={smsSending} disabled={saving || !g.smsAgreed} onClick={requestSms}>
                 문자 보내기
               </Button>
               <p className={styles.hint}>{COPY.smsNote}</p>
