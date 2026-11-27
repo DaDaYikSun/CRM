@@ -403,6 +403,62 @@ class CycleServiceTest {
     }
 
     @Nested
+    @DisplayName("선택 접종은 기록이 있는 아이만 예정 (#204, 접종 규칙 표 2장 8번)")
+    class Selective {
+
+        static final long CORONA = 2L;
+        static final long HEARTWORM = 6L;
+
+        @BeforeEach
+        void rules() {
+            // 생후 2026-10-01, 오늘(11-25) 등록
+            source.pets.put(1L, new PetProfile(1, LocalDate.of(2026, 10, 1), true, 70, TODAY));
+            source.rules.put(CORONA, List.of(new VaccineRule(PRIMARY, 42, 365, 14, 2), new VaccineRule(BOOSTER, 365, null, 365, null)));
+            source.rules.put(HEARTWORM, List.of(new VaccineRule(com.dadayiksun.crm.cycle.domain.VaccinePhase.PREVENTIVE, 56, null, 30, null)));
+            source.selective.add(CORONA); // 주요 접종 아님 · PREVENTIVE 없음
+        }
+
+        private void coronaVisit(long id, LocalDate date) {
+            source.visits.add(new VisitInfo(id, 1, ServiceType.VACCINE, CORONA, date));
+        }
+
+        @Test
+        void 기록_없는_아이를_등록하면_선택_접종_예정은_없고_주요_접종_예방은_있다() {
+            service.createInitialSchedules(1);
+            assertThat(schedules.findOpen(1, ServiceType.VACCINE, CORONA)).isEmpty();
+            assertThat(schedules.findOpen(1, ServiceType.VACCINE, RABIES)).isPresent();
+            assertThat(schedules.findOpen(1, ServiceType.VACCINE, HEARTWORM)).isPresent();
+            assertThat(schedules.findOpen(1, ServiceType.GROOMING, null)).isPresent();
+        }
+
+        @Test
+        void 선택_접종을_한_번_맞으면_그_종류의_다음_예정이_생긴다_K24_횟수_우선() {
+            service.createInitialSchedules(1);
+            coronaVisit(50, LocalDate.of(2026, 11, 20)); // 생후 50일, 기초 2회 중 1회
+            service.onVisitRecorded(50);
+            assertThat(open(1, ServiceType.VACCINE, CORONA).dueDate()).isEqualTo(LocalDate.of(2026, 12, 4)); // + 14일
+        }
+
+        @Test
+        void 다시_계산해도_기록_있는_아이는_예정을_두고_기록_없는_아이는_만들지_않는다() {
+            source.pets.put(2L, new PetProfile(2, LocalDate.of(2026, 10, 1), true, 70, TODAY));
+            coronaVisit(50, LocalDate.of(2026, 11, 20));
+            service.recalculateByRule();
+            assertThat(open(1, ServiceType.VACCINE, CORONA).dueDate()).isEqualTo(LocalDate.of(2026, 12, 4));
+            assertThat(schedules.findOpen(2, ServiceType.VACCINE, CORONA)).isEmpty();
+            assertThat(schedules.findOpen(2, ServiceType.VACCINE, RABIES)).isPresent();
+        }
+
+        @Test
+        void 기록이_모두_사라지면_아직_오지_않은_선택_접종_예정은_VOID() {
+            schedules.put(new Schedule(1, 1, ServiceType.VACCINE, CORONA, LocalDate.of(2026, 12, 4), Schedule.Status.OPEN,
+                    14, null, null, null, null, "NONE", 0, null));
+            service.recalculatePet(1);
+            assertThat(schedules.findById(1).orElseThrow().status()).isEqualTo(Schedule.Status.VOID);
+        }
+    }
+
+    @Nested
     @DisplayName("누락 판정 작업 (K20)")
     class Job {
 

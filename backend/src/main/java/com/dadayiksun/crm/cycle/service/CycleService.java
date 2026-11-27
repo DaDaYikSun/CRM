@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -151,11 +152,16 @@ public class CycleService {
         LocalDate today = clock.today();
         int threshold = settings.getInt(SettingKey.MISS_THRESHOLD_DAYS);
         Map<Long, List<VaccineRule>> rulesByType = source.activeRulesByType();
+        Set<Long> selective = source.selectiveTypeIds();
 
         for (Map.Entry<Long, List<VaccineRule>> e : rulesByType.entrySet()) {
             Long typeId = e.getKey();
-            Optional<LocalDate> due = SchedulePlanner.nextVaccineDue(pet, e.getValue(),
-                    source.visitDates(pet.petId(), ServiceType.VACCINE, typeId));
+            List<LocalDate> doses = source.visitDates(pet.petId(), ServiceType.VACCINE, typeId);
+            // 선택 접종은 그 종류의 접종 기록이 있는 아이만 예정한다 (#204, 접종 규칙 표 2장 8번).
+            // 기록이 없으면 예정일 없음: 새로 열지 않고, 다시 계산이면 아직 오지 않은 열린 주기를 VOID한다
+            Optional<LocalDate> due = selective.contains(typeId) && doses.isEmpty()
+                    ? Optional.empty()
+                    : SchedulePlanner.nextVaccineDue(pet, e.getValue(), doses);
             apply(pet.petId(), ServiceType.VACCINE, typeId, due, threshold, today, recalc, openerOf(visit, ServiceType.VACCINE, typeId));
         }
         if (recalc) {
