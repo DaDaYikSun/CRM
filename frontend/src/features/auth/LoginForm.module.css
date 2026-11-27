@@ -1,0 +1,52 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  width: 400px;
+  padding: var(--spacing-32);
+  background: var(--bg-surface);
+  border-radius: var(--radius-18);
+  box-shadow: var(--shadow-card);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-28);
+  font-weight: var(--font-bold);
+  text-align: center;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  font-size: var(--font-size-14);
+  font-weight: var(--font-medium);
+}
+
+.input {
+  height: var(--control-height-md);
+  padding: 0 var(--spacing-12);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-10);
+  font: inherit;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--border-error);
+}
+
+.error {
+  margin: 0;
+  padding: var(--spacing-10) var(--spacing-12);
+  border-radius: var(--radius-10);
+  background: var(--status-danger-bg);
+  color: var(--status-danger-text);
+  font-size: var(--font-size-14);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-13);
+  color: var(--text-muted);
+}
