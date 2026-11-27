@@ -80,6 +80,19 @@ class DashboardMetricsServiceTest {
     }
 
     @Test
+    void 반올림_경계에서도_정수로_계산해_틀리지_않는다() {
+        // 2000마리 중 누락 1001 = 0.5005 그대로 (소수 계산이면 0.50049999…로 아래로 틀릴 수 있다, PR #241 리뷰)
+        query.revisit.add(new DashboardMetricsQuery.RevisitCount("VACCINE", 2000, 1001));
+        query.revisit.add(new DashboardMetricsQuery.RevisitCount("GROOMING", 80, 1));
+
+        MetricsResponse m = service.metrics(null, null);
+
+        assertThat(m.vaccineMissRate().rate()).isEqualTo(0.5005);
+        assertThat(m.revisitRate().vaccine().rate()).isEqualTo(0.4995);
+        assertThat(m.revisitRate().grooming().rate()).isEqualTo(0.9875);
+    }
+
+    @Test
     void 기간을_보내지_않으면_이번_달로_센다() {
         MetricsResponse m = service.metrics(null, null);
         assertThat(m.from()).isEqualTo(LocalDate.of(2026, 11, 1));

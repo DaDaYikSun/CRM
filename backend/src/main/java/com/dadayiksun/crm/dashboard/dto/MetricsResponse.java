@@ -30,7 +30,7 @@ public record MetricsResponse(
          */
         public Ratio complement() {
             long n = denominator - numerator;
-            return new Ratio(rate == null ? null : Math.round((1 - rate) * 10000.0) / 10000.0, n, denominator);
+            return new Ratio(denominator == 0 ? null : (SCALE - units(numerator, denominator)) / (double) SCALE, n, denominator);
         }
     }
 
@@ -44,8 +44,18 @@ public record MetricsResponse(
         }
     }
 
-    /** 소수 넷째 자리까지. 분모가 0이면 null */
+    /** 비율은 소수 넷째 자리까지 (만분의 몇) */
+    static final long SCALE = 10_000;
+
+    /** 분모가 0이면 null */
     static Double ratio(long numerator, long denominator) {
-        return denominator == 0 ? null : Math.round(numerator * 10000.0 / denominator) / 10000.0;
+        return denominator == 0 ? null : units(numerator, denominator) / (double) SCALE;
+    }
+
+    /**
+     * 만분의 몇으로 반올림 (반올림은 0.5 올림). 소수 계산은 1001/2000 같은 경계에서 아래로 틀려서 정수로 계산한다 (PR #241 리뷰)
+     */
+    static long units(long numerator, long denominator) {
+        return (2 * numerator * SCALE + denominator) / (2 * denominator);
     }
 }

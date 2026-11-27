@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Metrics } from "@/lib/api/dashboard";
-import { complementPercents, gapText, hasContacts, methodRows, percent, resultRows, revisitCards } from "./metrics";
+import { complementPercents, gapText, hasContacts, methodRows, permille, resultRows, revisitCards } from "./metrics";
 
 const zero = { rate: null, converted: 0, total: 0 };
 function metrics(over: Partial<Metrics> = {}): Metrics {
@@ -43,6 +43,7 @@ describe("재방문 지표 (SCR-S02-02 ②)", () => {
     // 80마리 중 누락 1: 따로 반올림하면 98.8% + 1.3% = 100.1% (PR #241 리뷰)
     expect(complementPercents(1, 80)).toEqual({ revisit: "98.7%", miss: "1.3%" });
     expect(complementPercents(19, 50)).toEqual({ revisit: "62%", miss: "38%" });
+    expect(complementPercents(1001, 2000)).toEqual({ revisit: "49.9%", miss: "50.1%" });
     const cards = revisitCards(
       metrics({
         revisitRate: { vaccine: { rate: 0.9875, numerator: 79, denominator: 80 }, grooming: { rate: 0.9688, numerator: 31, denominator: 32 } },
@@ -57,8 +58,8 @@ describe("재방문 지표 (SCR-S02-02 ②)", () => {
     expect(revisitCards(metrics({ avgGapDays: { vaccine: null, grooming: null } }))[3].value).toBeNull();
     expect(gapText(-1.2)).toBe("-1.2일");
     expect(gapText(0)).toBe("0일");
-    expect(percent(0.7097)).toBe("71%");
-    expect(percent(0.1234)).toBe("12.3%");
+    expect(permille(22, 31)).toBe(710);
+    expect(permille(1001, 2000)).toBe(501); // 50.05% → 50.1% (소수 계산이면 500으로 틀림, PR #241 리뷰)
   });
 });
 

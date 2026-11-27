@@ -14,14 +14,17 @@ export interface MetricCard {
   detail: string | null;
 }
 
-/** 0.6213 → "62.1%" */
-export function percent(rate: number): string {
-  return `${Math.round(rate * 1000) / 10}%`;
+/**
+ * 천분의 몇으로 반올림 (0.5 올림). 분자 · 분모 정수로 계산한다: 1001/2000을 소수로 계산하면 500.4999…가 되어
+ * 50%로 내려간다 (PR #241 리뷰). 서버 rate(소수 넷째 자리)를 다시 반올림하지 않고 분자 · 분모에서 바로 낸다
+ */
+export function permille(count: number, total: number): number {
+  return Math.floor((2 * count * 1000 + total) / (2 * total));
 }
 
-/** 표시 자릿수(소수 첫째)로 반올림한 % 숫자 */
-function pct1(count: number, total: number): number {
-  return Math.round((count / total) * 1000) / 10;
+/** 천분의 몇 → "62.1%" */
+function pctText(perMille: number): string {
+  return `${perMille / 10}%`;
 }
 
 /**
@@ -29,8 +32,8 @@ function pct1(count: number, total: number): number {
  * 누락률을 표시 자릿수로 반올림하고 재방문율은 100에서 뺀다 (따로 반올림하면 98.8% + 1.3% = 100.1%, PR #241 리뷰).
  */
 export function complementPercents(missed: number, total: number): { revisit: string; miss: string } {
-  const miss = pct1(missed, total);
-  return { revisit: `${Math.round((100 - miss) * 10) / 10}%`, miss: `${miss}%` };
+  const miss = permille(missed, total);
+  return { revisit: pctText(1000 - miss), miss: pctText(miss) };
 }
 
 function card(label: string, r: Ratio, value: string, unit: string): MetricCard {
@@ -68,7 +71,7 @@ export interface ConversionRow {
 }
 
 function row(label: string, c: Conversion): ConversionRow {
-  return { label, rate: c.rate === null ? null : percent(c.rate), count: `${c.converted}건 / ${c.total}건` };
+  return { label, rate: c.total === 0 ? null : pctText(permille(c.converted, c.total)), count: `${c.converted}건 / ${c.total}건` };
 }
 
 /** ③ 결과 유형별 (5가지 고정 순서, NFR-DATA-003) */
