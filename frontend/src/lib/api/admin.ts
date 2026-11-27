@@ -47,3 +47,70 @@ export function updateStaff(
 export function resetStaffPassword(staffId: number, options?: SaveOptions): Promise<{ tempPassword: string }> {
   return api.post<{ tempPassword: string }>(`/api/admin/staff/${staffId}/reset-password`, undefined, options);
 }
+
+// #175: 주기 규칙 · 기준값 C17 (FR-ADM-002 · 003 · 004, API 설계 3-10)
+
+export interface VaccineTypeRow {
+  vaccineTypeId: number;
+  code: string;
+  name: string;
+  isMajor: boolean;
+  isActive: boolean;
+}
+
+/** ageToDays · doseCount가 null이면 '끝 없음' · '계속 반복' (DB 4-7) */
+export interface VaccineRuleRow {
+  vaccineRuleId: number;
+  phase: "PRIMARY" | "BOOSTER" | "PREVENTIVE";
+  ageFromDays: number;
+  ageToDays: number | null;
+  intervalDays: number;
+  doseCount: number | null;
+  note: string | null;
+}
+
+export interface VaccineRuleGroup {
+  vaccineType: VaccineTypeRow;
+  rules: VaccineRuleRow[];
+}
+
+export interface CoatInterval {
+  coatTypeId: number;
+  name: string;
+  defaultGroomWeeks: number;
+}
+
+export interface ThresholdSettings {
+  missThresholdDays: number;
+  rainbowHoldDays: number;
+}
+
+/** 규칙 · 간격 저장 출력: 아직 오지 않은 예정일을 다시 계산한 아이 수 */
+export interface Recalculated {
+  recalculatedPetCount: number;
+}
+
+export function getVaccineRules(): Promise<VaccineRuleGroup[]> {
+  return api.get<VaccineRuleGroup[]>("/api/admin/vaccine-rules");
+}
+
+/** 고친 종류만 보낸다 */
+export function saveVaccineRules(groups: VaccineRuleGroup[], options?: SaveOptions): Promise<Recalculated> {
+  return api.put<Recalculated>("/api/admin/vaccine-rules", groups, options);
+}
+
+export function getCoatIntervals(): Promise<CoatInterval[]> {
+  return api.get<CoatInterval[]>("/api/admin/coat-types/intervals");
+}
+
+export function saveCoatIntervals(items: CoatInterval[], options?: SaveOptions): Promise<Recalculated> {
+  return api.put<Recalculated>("/api/admin/coat-types/intervals", items, options);
+}
+
+export function getThresholdSettings(): Promise<ThresholdSettings> {
+  return api.get<ThresholdSettings>("/api/admin/settings");
+}
+
+export function saveThresholdSettings(input: ThresholdSettings, options?: SaveOptions): Promise<ThresholdSettings> {
+  return api.put<ThresholdSettings>("/api/admin/settings", input, options);
+}
