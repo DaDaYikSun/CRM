@@ -1,5 +1,7 @@
 package com.dadayiksun.crm.auth.controller;
 
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -21,6 +23,7 @@ import com.dadayiksun.crm.auth.access.RoleAccessFilter;
 import com.dadayiksun.crm.auth.domain.Role;
 import com.dadayiksun.crm.auth.domain.Staff;
 import com.dadayiksun.crm.auth.service.LoginService;
+import com.dadayiksun.crm.auth.service.PasswordService;
 import com.dadayiksun.crm.common.error.ApiException;
 import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.common.error.GlobalExceptionHandler;
@@ -39,6 +42,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private LoginService loginService;
+
+    @MockitoBean
+    private PasswordService passwordService;
 
     private static final Staff GROOMER = new Staff(3L, "groomer", "x", "미용사", Role.GROOMER, true, false);
 
@@ -99,5 +105,52 @@ class AuthControllerTest {
         mvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("SESSION_EXPIRED"));
+    }
+
+    // ---- 임시 비밀번호 → 새 비밀번호 (#150, POL-ACC-010, API 설계 1-6) ----
+
+    private static final Staff TEMP_DESK = new Staff(5L, "desk02", "x", "새 데스크", Role.DESK, true, true);
+
+    private MockHttpSession loginWithTemporaryPassword() throws Exception {
+        when(loginService.login("desk02", "Temp1234")).thenReturn(TEMP_DESK);
+        return (MockHttpSession) mvc.perform(login("{\"loginId\":\"desk02\",\"password\":\"Temp1234\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mustChangePassword").value(true))
+                .andReturn().getRequest().getSession();
+    }
+
+    @Test
+    void 새_비밀번호를_정하기_전에는_다른_API가_403_PASSWORD_CHANGE_REQUIRED() throws Exception {
+        MockHttpSession session = loginWithTemporaryPassword();
+        mvc.perform(get("/api/search").session(session))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("PASSWORD_CHANGE_REQUIRED"))
+                .andExpect(jsonPath("$.error.message").value("임시 비밀번호로 로그인했습니다. 새 비밀번호를 정해 주세요."));
+        when(loginService.findActive(5L)).thenReturn(TEMP_DESK);
+        mvc.perform(get("/api/auth/me").session(session)) // 새로고침해도 새 비밀번호 화면을 지킨다
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mustChangePassword").value(true));
+    }
+
+    @Test
+    void 새_비밀번호를_정하면_다른_API를_다시_쓸_수_있다() throws Exception {
+        MockHttpSession session = loginWithTemporaryPassword();
+        mvc.perform(withCsrf(post("/api/auth/password")).session(session)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"newPass99\"}"))
+                .andExpect(status().isOk());
+        verify(passwordService).change(5L, "newPass99");
+        mvc.perform(get("/api/search").session(session)) // 막히지 않고 지나감 (이 시험에는 검색 Controller가 없어 404)
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 조건에_안_맞는_새_비밀번호는_400_PASSWORD_RULE() throws Exception {
+        MockHttpSession session = loginWithTemporaryPassword();
+        doThrow(new ApiException(ErrorCode.PASSWORD_RULE)).when(passwordService).change(5L, "short1");
+        mvc.perform(withCsrf(post("/api/auth/password")).session(session)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"short1\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("PASSWORD_RULE"))
+                .andExpect(jsonPath("$.error.message").value("비밀번호는 8자 이상, 영문과 숫자를 섞어 주세요."));
     }
 }
