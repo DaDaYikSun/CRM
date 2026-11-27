@@ -1,0 +1,71 @@
+// S-02 재방문 지표 · 연락 효과 (FR-DASH-002 · 003, 화면 설계 SCR-S02-02 ② · ③). 숫자는 서버가 센 값 그대로 쓴다 (K17).
+// 화면 문구는 정책 4-2 · 4-4 글자 그대로. 그리기와 떼어 테스트한다.
+import type { ContactMethod, Conversion, Metrics, Ratio } from "@/lib/api/dashboard";
+import { RESULT_LABEL, RESULTS } from "@/features/contact/contactRules";
+
+export const METRICS_COPY = {
+  empty: "아직 기록이 없습니다.", // 정책 4-2 · POL-ERR-008 공통 빈 상태
+  methodNote: "전화 안 받음 2일차 뒤 보낸 안내 문자도 문자로 셉니다.", // 정책 4-4 S-02 '연락 방법별 전환'
+} as const;
+
+export interface MetricCard {
+  label: string;
+  value: string | null; // null이면 빈 상태 문구
+  detail: string | null;
+}
+
+/** 0.6213 → "62.1%" */
+export function percent(rate: number): string {
+  return `${Math.round(rate * 1000) / 10}%`;
+}
+
+function ratioCard(label: string, r: Ratio, unit: string): MetricCard {
+  if (r.rate === null) return { label, value: null, detail: null };
+  return { label, value: percent(r.rate), detail: `${r.numerator}${unit} / ${r.denominator}${unit}` };
+}
+
+/** 6.4 → "+6.4일", -1.2 → "-1.2일", 0 → "0일" */
+export function gapText(days: number): string {
+  return `${days > 0 ? "+" : ""}${days}일`;
+}
+
+/** ② 지표 4개 (SCR-S02-02 순서). 비율은 아이 수 기준 (POL-MISS-003 · 009) */
+export function revisitCards(m: Metrics): MetricCard[] {
+  const { vaccine, grooming } = m.avgGapDays;
+  const gap = [vaccine !== null ? `접종 ${gapText(vaccine)}` : null, grooming !== null ? `미용 ${gapText(grooming)}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  return [
+    ratioCard("접종 재방문율 (주요 접종)", m.revisitRate.vaccine, "마리"),
+    ratioCard("미용 재방문율", m.revisitRate.grooming, "마리"),
+    ratioCard("접종 누락률 (주요 접종)", m.vaccineMissRate, "마리"),
+    { label: "예정일 대비 실제 방문 차이", value: gap || null, detail: gap ? "평균, + 는 예정일보다 늦게 옴" : null },
+  ];
+}
+
+export interface ConversionRow {
+  label: string;
+  rate: string | null; // null이면 빈 상태 문구
+  count: string;
+}
+
+function row(label: string, c: Conversion): ConversionRow {
+  return { label, rate: c.rate === null ? null : percent(c.rate), count: `${c.converted}건 / ${c.total}건` };
+}
+
+/** ③ 결과 유형별 (5가지 고정 순서, NFR-DATA-003) */
+export function resultRows(m: Metrics): ConversionRow[] {
+  return RESULTS.map((r) => row(RESULT_LABEL[r], m.conversionByResult[r]));
+}
+
+const METHOD_LABEL: Record<ContactMethod, string> = { PHONE: "전화", SMS: "문자 (모의 발송)" };
+
+/** ③ 연락 방법별 */
+export function methodRows(m: Metrics): ConversionRow[] {
+  return (Object.keys(METHOD_LABEL) as ContactMethod[]).map((k) => row(METHOD_LABEL[k], m.conversionByMethod[k]));
+}
+
+/** 연락이 한 건도 없으면 표 대신 빈 상태 */
+export function hasContacts(m: Metrics): boolean {
+  return m.conversionByMethod.PHONE.total + m.conversionByMethod.SMS.total > 0;
+}
