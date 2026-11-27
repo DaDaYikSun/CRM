@@ -15,8 +15,10 @@ import com.dadayiksun.crm.auth.domain.Role;
  * 그래서 아직 없는 API도, 새로 생기는 API도 기본이 미용사 403이다. 미용사에게 열어 줄 때만 아래 목록에 더한다.
  *
  * <p>요청 본문 · 값에 따라 갈리는 검사는 여기서 못 한다. 해당 API가 {@code CurrentStaff.require(...)}로 한다:
- * 방문 {@code serviceType=VACCINE}(미용사 거부, #148), 접종 방문의 수정 이력(#149 · 초안 28).
- * 쿼리 값(타임라인 {@code type}, 수정 이력 {@code targetType})은 여기서 막는다.
+ * 방문 {@code serviceType=VACCINE}(미용사 거부, #148), 접종 방문의 수정 이력(#149 · 초안 28),
+ * 타임라인 {@code type=ALL} · {@code type} 없음(미용사는 미용 줄만, #149 — 규칙은 이 둘을 열어 둔다),
+ * 수정 이력 {@code targetType} 없음(400 또는 미용 기록만, 초안 28 — 규칙은 이것도 열어 둔다).
+ * 쿼리 값(타임라인 {@code type=VACCINE|CONTACT}, 수정 이력 {@code targetType=CONTACT_LOG})만 여기서 막는다.
  */
 public final class RoleAccessRules {
 

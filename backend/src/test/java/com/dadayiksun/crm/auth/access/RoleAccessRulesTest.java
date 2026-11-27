@@ -82,6 +82,13 @@ class RoleAccessRulesTest {
         assertThat(RoleAccessRules.allows(Role.GROOMER, "GET", "/api/edit-history", Map.of("targetType", new String[] {"VISIT"}))).isTrue();
     }
 
+    /** 규칙이 열어 두는 경우. 이때 미용사에게 접종 · 연락 줄을 빼는 일은 API가 한다 (#149, 초안 28). */
+    @Test
+    void type_없는_타임라인과_targetType_없는_수정이력은_규칙을_통과한다() {
+        assertThat(RoleAccessRules.allows(Role.GROOMER, "GET", "/api/pets/1/timeline", Map.of())).isTrue();
+        assertThat(RoleAccessRules.allows(Role.GROOMER, "GET", "/api/edit-history", Map.of())).isTrue();
+    }
+
     @Test
     void 표에_없는_API는_미용사_기본_거부이고_HEAD는_GET과_같다() {
         assertThat(allowed(Role.GROOMER, "GET", "/api/never-heard-of")).isFalse();
