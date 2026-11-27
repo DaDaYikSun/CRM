@@ -45,6 +45,11 @@ export interface ContactHistoryItem {
   converted: boolean;
   mockSms: boolean;
   petName: string;
+  // S-06 표의 열을 나누려고 summary와 따로 준다 (화면 설계 SCR-S06-02, #223)
+  method: ContactMethod;
+  talkedWith: TalkedWith | null; // 문자면 없음
+  result: ContactResult | null; // 모의 발송만 한 행이면 없음
+  itemName: string; // 접종 종류 이름 또는 '미용'
 }
 
 export interface SaveContactInput {

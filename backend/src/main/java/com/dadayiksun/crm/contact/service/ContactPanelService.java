@@ -65,9 +65,13 @@ public class ContactPanelService {
 
     private static ContactHistoryItem toItem(ContactQuery.HistoryRow r, long staffId, LocalDate today) {
         LocalDate date = r.contactedAt().toLocalDate();
-        return new ContactHistoryItem("CONTACT", r.id(), date, summary(r), r.memo(), r.staffName(),
-                r.contactedAt().atZone(KstClock.ZONE).toOffsetDateTime(), r.edited(),
-                r.createdBy() == staffId && date.equals(today), r.converted(), r.mockSms(), r.petName());
+        return toItem(r, summary(r), r.createdBy() == staffId && date.equals(today));
+    }
+
+    private static ContactHistoryItem toItem(ContactQuery.HistoryRow r, String summary, boolean editable) {
+        return new ContactHistoryItem("CONTACT", r.id(), r.contactedAt().toLocalDate(), summary, r.memo(),
+                r.staffName(), r.contactedAt().atZone(KstClock.ZONE).toOffsetDateTime(), r.edited(), editable,
+                r.converted(), r.mockSms(), r.petName(), r.method(), r.talkedWith(), r.result(), r.itemName());
     }
 
     /**
@@ -76,14 +80,9 @@ public class ContactPanelService {
      * shortcut: editable은 늘 false (타임라인 계약에 직원이 없음). 기록 수정(#178)을 붙일 때 계약에 직원을 넘겨 채운다
      */
     public List<ContactHistoryItem> petHistory(long petId) {
-        return query.petHistory(petId).stream().map(p -> {
-            ContactQuery.HistoryRow r = p.row();
-            String item = "GROOMING".equals(p.serviceType()) ? "미용" : p.vaccineTypeName();
-            return new ContactHistoryItem("CONTACT", r.id(), r.contactedAt().toLocalDate(),
-                    item == null ? summary(r) : item + " · " + summary(r), r.memo(), r.staffName(),
-                    r.contactedAt().atZone(KstClock.ZONE).toOffsetDateTime(), r.edited(), false, r.converted(),
-                    r.mockSms(), r.petName());
-        }).toList();
+        return query.petHistory(petId).stream()
+                .map(r -> toItem(r, r.itemName() == null ? summary(r) : r.itemName() + " · " + summary(r), false))
+                .toList();
     }
 
     /** "전화 · 본인 · 전화 안 받음". 모의 발송만 한 행은 결과 대신 '모의 발송' */
