@@ -63,15 +63,12 @@ export function SearchResults({ canRegister }: { canRegister: boolean }) {
       {data && (
         <>
           <p>검색 결과 {data.total}건</p>
-          {data.total === 0 && (
+          {/* 미용사는 등록할 수 없다: 등록 질문 · 버튼 · 안내를 모두 숨기고 위 '검색 결과 0건'만 보인다 (정책에 미용사용 문구는 없어 만들지 않는다) */}
+          {data.total === 0 && canRegister && (
             <div role="status">
               <p>&apos;{q.trim()}&apos;로 찾은 보호자가 없습니다. 새로 등록할까요?</p>
-              {canRegister && (
-                <>
-                  <Button onClick={() => router.push(registerHref(q))}>새로 등록</Button>
-                  <p className={styles.guide}>검색어가 번호면 전화번호 칸에, 이름이면 이름 칸에 미리 채웁니다.</p>
-                </>
-              )}
+              <Button onClick={() => router.push(registerHref(q))}>새로 등록</Button>
+              <p className={styles.guide}>검색어가 번호면 전화번호 칸에, 이름이면 이름 칸에 미리 채웁니다.</p>
             </div>
           )}
           {/* [?] 기준 건수는 정책에 없다. 임시로 한 페이지(20개)를 넘으면 띄운다 */}
