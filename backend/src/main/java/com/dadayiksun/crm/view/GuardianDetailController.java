@@ -15,8 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 /**
  * 계약 C10 보호자 상세 · 수정 (S-06, API 설계 3-3, FR-CUS-008). 두 API 모두 같은 모양을 주므로 조립 자리에 둔다.
  *
- * <p>[막힘] 역할 403(미용사 거부, POL-ACC-011)은 아직 걸지 않았다. #143이 API 설계 2장 허용 표를 한 곳에 옮기면 걸린다.
- * 전체 번호를 주는 API라 #143 전에는 배포하면 안 된다 (NFR-SEC-003).
+ * <p>역할 403(미용사 거부, POL-ACC-011)은 #143의 RoleAccessRules가 건다. 전체 번호를 주는 API다 (NFR-SEC-003).
  */
 @RestController
 @RequestMapping("/api/guardians")

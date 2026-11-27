@@ -17,8 +17,7 @@ import com.dadayiksun.crm.customer.service.RainbowRevertService;
 /**
  * 계약 C10 아이 프로필 수정 · 무지개다리 되돌리기 (API 설계 3-3, FR-CUS-008).
  *
- * <p>[막힘] 역할 403은 아직 걸지 않았다 (#145와 같은 이유). #143이 API 설계 2장 허용 표를 한 곳에 옮기면 걸린다:
- * 수정은 관리자 · 데스크(미용사 403), 되돌리기는 관리자만 (POL-ACC-011, POL-END-004).
+ * <p>역할 403은 #143의 RoleAccessRules가 건다: 수정은 관리자 · 데스크(미용사 403), 되돌리기는 관리자만 (POL-ACC-011, POL-END-004).
  */
 @RestController
 @RequestMapping("/api/pets")

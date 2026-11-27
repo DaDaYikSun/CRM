@@ -4,6 +4,7 @@ import {
   REGISTERED_TOAST,
   REGISTER_COPY,
   REQUIRED_LABELS,
+  birthInvalid,
   canSave,
   defaultCoatTypeFor,
   duplicateWarning,
@@ -73,6 +74,23 @@ describe("필수 6칸 (POL-REG-001, T9)", () => {
     expect(missingFields(unknown, NEW)).toEqual(["birth"]);
     expect(canSave({ ...unknown, approxValue: "3" }, NEW)).toBe(true);
     expect(canSave({ ...unknown, approxValue: "1.5" }, NEW)).toBe(false);
+  });
+
+  it("미래 생년월일 · 범위 밖 대략 나이는 저장할 수 없다 (POL-REG-004)", () => {
+    expect(birthInvalid({ ...FILLED, birthDate: "2026-11-27" }, "2026-11-26")).toBe(true);
+    expect(birthInvalid({ ...FILLED, birthDate: "2026-11-26" }, "2026-11-26")).toBe(false);
+    const unknown = { ...FILLED, birthDate: "", birthUnknown: true };
+    const bad = (approxValue: string, approxUnit: "months" | "years") =>
+      !canSave({ ...unknown, approxValue, approxUnit }, NEW);
+    expect(bad("-3", "years")).toBe(true);
+    expect(bad("0", "years")).toBe(true);
+    expect(bad("0", "months")).toBe(true);
+    expect(bad("12", "months")).toBe(true);
+    expect(bad("31", "years")).toBe(true);
+    expect(bad("1", "months")).toBe(false);
+    expect(bad("11", "months")).toBe(false);
+    expect(bad("1", "years")).toBe(false);
+    expect(bad("30", "years")).toBe(false);
   });
 
   it("기존 보호자에 아이를 붙일 때는 보호자 칸을 보지 않는다", () => {

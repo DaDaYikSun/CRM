@@ -16,13 +16,15 @@ import com.dadayiksun.crm.customer.dto.PetInput;
  * '오늘'은 한국 시간 ({@link KstClock}).
  *
  * <p>둘 중 하나만 받는다. 둘 다 없으면 필수 칸 빠짐, 둘 다 있거나 대략 나이에 개월 · 나이를 함께 넣으면 형식 틀림.
- * 미래 생년월일 · 0 이하 대략 나이는 기준 문서에 정한 것이 없어 막지 않는다 ([?] #145 보고).
+ * 생년월일은 오늘 이하, 대략 나이는 개월 1~11 · 나이 1~{@value #MAX_YEARS} (POL-REG-004, #191 리뷰).
+ * 나이 위쪽 한도는 문서에 없어 `LocalDate` 범위 오류(500)만 막는 값이다 ([?] #145 보고).
  */
 @Component
 public class BirthDateResolver {
 
     static final String BIRTH_DATE_FIELD = "pet.birthDate";
     static final String APPROX_AGE_FIELD = "pet.approxAge";
+    static final int MAX_YEARS = 30;
     static final String BIRTH_DATE_LABEL = "생년월일";
 
     private final KstClock clock;
@@ -44,9 +46,20 @@ public class BirthDateResolver {
             return Optional.empty();
         }
         if (pet.birthDate() != null) {
+            if (pet.birthDate().isAfter(clock.today())) {
+                errors.add(new ErrorResponse.FieldError(BIRTH_DATE_FIELD, ErrorCode.VALIDATION_FALLBACK_MESSAGE));
+                return Optional.empty();
+            }
             return Optional.of(BirthDate.exact(pet.birthDate()));
         }
         if (approx.years() != null && approx.months() != null) {
+            errors.add(new ErrorResponse.FieldError(APPROX_AGE_FIELD, ErrorCode.VALIDATION_FALLBACK_MESSAGE));
+            return Optional.empty();
+        }
+        boolean inRange = approx.years() != null
+                ? approx.years() >= 1 && approx.years() <= MAX_YEARS
+                : approx.months() >= 1 && approx.months() <= 11;
+        if (!inRange) {
             errors.add(new ErrorResponse.FieldError(APPROX_AGE_FIELD, ErrorCode.VALIDATION_FALLBACK_MESSAGE));
             return Optional.empty();
         }

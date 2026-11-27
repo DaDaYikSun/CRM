@@ -27,7 +27,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.dadayiksun.crm.common.audit.SessionKeys;
+import com.dadayiksun.crm.auth.access.AuthTestSupport;
+import com.dadayiksun.crm.auth.domain.Role;
 import com.dadayiksun.crm.common.error.GlobalExceptionHandler;
 import com.dadayiksun.crm.common.security.JsonSecurityHandlers;
 import com.dadayiksun.crm.common.security.SecurityConfig;
@@ -42,7 +43,7 @@ import jakarta.servlet.http.Cookie;
 
 /**
  * C6 번호 확인 · 등록 API (API 설계 3-3, 1-2 · 1-5).
- * Fake 사용: C3 현재 직원(#143) 대신 세션에 시드 직원 ID를 넣는다.
+ * 로그인한 데스크 직원 세션은 #143의 AuthTestSupport로 만든다 (역할 검사 필터가 모든 /api/**에 로그인을 요구한다).
  */
 @WebMvcTest(controllers = GuardianRegistrationController.class)
 @Import({SecurityConfig.class, JsonSecurityHandlers.class, GlobalExceptionHandler.class})
@@ -70,8 +71,7 @@ class GuardianRegistrationControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        session = new MockHttpSession();
-        session.setAttribute(SessionKeys.STAFF_ID, SEED_STAFF_ID);
+        session = AuthTestSupport.session(SEED_STAFF_ID, Role.DESK);
         csrf = mvc.perform(get("/api/csrf")).andReturn().getResponse().getCookie("XSRF-TOKEN");
     }
 

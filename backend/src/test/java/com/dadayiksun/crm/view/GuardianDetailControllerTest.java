@@ -21,6 +21,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.dadayiksun.crm.auth.access.AuthTestSupport;
+import com.dadayiksun.crm.auth.domain.Role;
 import com.dadayiksun.crm.common.error.ApiException;
 import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.common.error.GlobalExceptionHandler;
@@ -31,7 +33,7 @@ import com.dadayiksun.crm.customer.service.GuardianUpdateService;
 
 import jakarta.servlet.http.Cookie;
 
-/** C10 보호자 상세 · 수정 응답 모양 (API 설계 3-3). Fake: C3 역할(#143)은 아직 없어 403은 시험하지 않는다. */
+/** C10 보호자 상세 · 수정 응답 모양 (API 설계 3-3). 로그인 · 역할은 #143의 AuthTestSupport 세션으로 만든다. */
 @WebMvcTest(controllers = GuardianDetailController.class)
 @Import({SecurityConfig.class, JsonSecurityHandlers.class, GlobalExceptionHandler.class})
 class GuardianDetailControllerTest {
@@ -56,7 +58,7 @@ class GuardianDetailControllerTest {
     void 상세는_전체_번호와_같은_집_아이를_준다() throws Exception {
         when(assembler.assemble(7L)).thenReturn(sample());
 
-        mvc.perform(get("/api/guardians/7"))
+        mvc.perform(get("/api/guardians/7").session(AuthTestSupport.session(Role.DESK)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.guardian.phone").value("01000000000"))
                 .andExpect(jsonPath("$.data.pets[0].name").value("보리"))
@@ -67,7 +69,7 @@ class GuardianDetailControllerTest {
     void 없는_보호자는_404_공통_응답() throws Exception {
         when(assembler.assemble(99L)).thenThrow(new ApiException(ErrorCode.NOT_FOUND));
 
-        mvc.perform(get("/api/guardians/99"))
+        mvc.perform(get("/api/guardians/99").session(AuthTestSupport.session(Role.DESK)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
     }
@@ -77,11 +79,22 @@ class GuardianDetailControllerTest {
         when(assembler.assemble(7L)).thenReturn(sample());
         var csrf = mvc.perform(get("/api/csrf")).andReturn().getResponse().getCookie("XSRF-TOKEN");
 
-        mvc.perform(patch("/api/guardians/7").cookie(csrf).header("X-XSRF-TOKEN", csrf.getValue())
+        mvc.perform(patch("/api/guardians/7").session(AuthTestSupport.session(Role.DESK)).cookie(csrf).header("X-XSRF-TOKEN", csrf.getValue())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"contactTimeNote\":null}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.guardian.guardianId").value(7));
 
         verify(update).update(eq(7L), any());
+    }
+
+    @Test
+    void 미용사는_상세와_수정이_403() throws Exception {
+        var csrf = mvc.perform(get("/api/csrf")).andReturn().getResponse().getCookie("XSRF-TOKEN");
+
+        mvc.perform(get("/api/guardians/7").session(AuthTestSupport.session(Role.GROOMER)))
+                .andExpect(status().isForbidden());
+        mvc.perform(patch("/api/guardians/7").session(AuthTestSupport.session(Role.GROOMER)).cookie(csrf)
+                .header("X-XSRF-TOKEN", csrf.getValue()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden());
     }
 }
