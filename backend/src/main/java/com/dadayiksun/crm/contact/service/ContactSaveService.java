@@ -31,7 +31,7 @@ import com.dadayiksun.crm.contact.repository.ContactQuery;
  * <ul>
  *   <li>예정 항목마다 한 행, 같은 {@code contact_group_id} (POL-CNT-002). 결과는 5가지만 (NFR-DATA-003)</li>
  *   <li>예정은 이 보호자 아이의 진행 중 주기여야 한다. 아니면 400. 무지개다리 아이면 409 PET_RAINBOW</li>
- *   <li>다음 연락 예정일이 비었고 결과가 '전화 안 받음'이면 내일(한국 시간)로 채운다 (POL-TGT-006)</li>
+ *   <li>다음 연락 예정일은 '전화 안 받음' 행에만 남기고, 비었으면 내일(한국 시간)로 채운다 (POL-TGT-006). 오늘보다 앞이면 400</li>
  *   <li>같은 트랜잭션에서 C14 후속 처리를 부른다. schedule · guardian은 쓰지 않는다 (K17 ①)</li>
  *   <li>같은 요청 두 번은 {@code IdempotencyFilter}(K15)가 막는다. 응답은 트랜잭션 안에서 만든다 (#193)</li>
  * </ul>
@@ -40,6 +40,8 @@ import com.dadayiksun.crm.contact.repository.ContactQuery;
 public class ContactSaveService {
 
     static final int MEMO_MAX = 200;
+    /** '전화 안 받음' 다음 연락 기본 간격 (POL-TGT-006 고정값 1일). 프론트 contactRules의 NO_ANSWER_RETRY_DAYS와 같은 값 */
+    static final int NO_ANSWER_RETRY_DAYS = 1;
     private static final Set<String> METHODS = Set.of("PHONE", "SMS");
     private static final Set<String> TALKED_WITH = Set.of("SELF", "FAMILY");
 
@@ -93,6 +95,11 @@ public class ContactSaveService {
             }
             results.add(result.orElse(null));
         }
+        LocalDateTime now = clock.now(); // 기록 시각과 날짜 계산을 같은 값으로 (자정 경계)
+        LocalDate today = now.toLocalDate();
+        if (req.nextContactDate() != null && req.nextContactDate().isBefore(today)) {
+            errors.add(invalid("nextContactDate"));
+        }
         throwIfAny(errors);
 
         Map<Long, ContactQuery.OpenSchedule> open = query.openSchedules(seen).stream()
@@ -107,13 +114,13 @@ public class ContactSaveService {
         }
 
         String groupId = UUID.randomUUID().toString();
-        LocalDateTime now = clock.now();
-        LocalDate tomorrow = now.toLocalDate().plusDays(1); // now와 같은 시각 기준 (자정 경계)
+        LocalDate retryDefault = today.plusDays(NO_ANSWER_RETRY_DAYS);
         for (int i = 0; i < items.size(); i++) {
             ContactQuery.OpenSchedule s = open.get(items.get(i).scheduleId());
             ContactResult result = results.get(i);
-            LocalDate next = req.nextContactDate() != null ? req.nextContactDate()
-                    : result == ContactResult.NO_ANSWER ? tomorrow : null;
+            // 다음 연락 예정일은 '전화 안 받음' 행에만 남긴다. 예약함 · 거절 행에 남으면 #154가 그 항목을 목록에서 미룬다
+            LocalDate next = result != ContactResult.NO_ANSWER ? null
+                    : req.nextContactDate() != null ? req.nextContactDate() : retryDefault;
             logs.insert(new ContactLogRepository.Row(groupId, req.guardianId(), s.petId(), s.scheduleId(),
                     req.method(), result.name(), req.talkedWith(), memo, next, now, staffId));
         }

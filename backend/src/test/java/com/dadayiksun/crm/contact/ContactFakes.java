@@ -32,6 +32,7 @@ public final class ContactFakes {
         public ContactPanelResponse.TodayContact todayContact;
         public final List<HistoryRow> history = new ArrayList<>();
         public final List<OpenSchedule> open = new ArrayList<>();
+        public final List<PetContactRow> petHistory = new ArrayList<>();
         public LocalDate askedWeekEnd;
 
         @Override
@@ -58,6 +59,11 @@ public final class ContactFakes {
         @Override
         public List<HistoryRow> history(long guardianId, int limit, long offset) {
             return history.stream().skip(offset).limit(limit).toList();
+        }
+
+        @Override
+        public List<PetContactRow> petHistory(long petId) {
+            return petHistory;
         }
 
         @Override

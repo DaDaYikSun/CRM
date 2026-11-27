@@ -43,14 +43,19 @@ export function secondDayCopy(smsAgreed: boolean): { notice: string; detail: str
 
 export type Results = Record<number, ContactResult | undefined>;
 
-/** 어제 이미 안 받은(noAnswerCount = 1) 항목에 다시 '전화 안 받음'을 골랐는지 → 저장 전에 2일차 확인 창 */
+// POL-TGT-006 고정값 (1일 뒤 다시, 2일차에 마침). 백엔드 ContactSaveService.NO_ANSWER_RETRY_DAYS와 같은 값
+export const NO_ANSWER_RETRY_DAYS = 1;
+/** 이미 한 번 안 받은 항목(noAnswerCount = 1)에 다시 '전화 안 받음' = 2일차 */
+export const SECOND_DAY_PREV_NO_ANSWER = 1;
+
+/** 어제 이미 안 받은 항목에 다시 '전화 안 받음'을 골랐는지 → 저장 전에 2일차 확인 창 */
 export function isSecondDayNoAnswer(items: PanelItem[], results: Results): boolean {
-  return items.some((i) => i.noAnswerCount === 1 && results[i.scheduleId] === "NO_ANSWER");
+  return items.some((i) => i.noAnswerCount === SECOND_DAY_PREV_NO_ANSWER && results[i.scheduleId] === "NO_ANSWER");
 }
 
 /** 다음 연락 예정일 기본값: '전화 안 받음'이 하나라도 있으면 내일, 아니면 빈칸 (POL-TGT-006) */
 export function defaultNextContactDate(results: Results, today: string): string {
-  return Object.values(results).includes("NO_ANSWER") ? addDays(today, 1) : "";
+  return Object.values(results).includes("NO_ANSWER") ? addDays(today, NO_ANSWER_RETRY_DAYS) : "";
 }
 
 /** 결과를 다 고르기 전에는 [연락 결과 저장]이 꺼져 있다 (SCR-S04-03) */

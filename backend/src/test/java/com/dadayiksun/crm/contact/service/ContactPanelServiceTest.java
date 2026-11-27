@@ -19,6 +19,7 @@ import com.dadayiksun.crm.contact.dto.ContactHistoryItem;
 import com.dadayiksun.crm.contact.dto.ContactPanelResponse;
 import com.dadayiksun.crm.contact.repository.ContactQuery.HistoryRow;
 import com.dadayiksun.crm.contact.repository.ContactQuery.PanelItem;
+import com.dadayiksun.crm.contact.repository.ContactQuery.PetContactRow;
 
 /** 연락 패널 · 지난 연락 (FR-CNT-001, POL-CNT-006, API 설계 3-6). 2026-11-25(수) 10시 기준. */
 class ContactPanelServiceTest {
@@ -89,6 +90,20 @@ class ContactPanelServiceTest {
         query.history.add(history(1, LocalDateTime.of(2026, 11, 24, 15, 0), "SMS", null, null, ME, true));
 
         assertThat(service.history(7, PageQuery.parse("1"), ME).items().get(0).summary()).isEqualTo("문자 · 모의 발송");
+    }
+
+    @Test
+    void 아이_타임라인_연락_줄은_항목_이름을_앞에_붙인다() {
+        query.petHistory.addAll(List.of(
+                new PetContactRow(history(2, LocalDateTime.of(2026, 11, 25, 9, 40), "PHONE", "BOOKED", "SELF", ME, false),
+                        "VACCINE", "종합백신"),
+                new PetContactRow(history(1, LocalDateTime.of(2026, 11, 25, 9, 40), "PHONE", "BOOKED", "SELF", ME, false),
+                        "GROOMING", null)));
+
+        assertThat(service.petHistory(12)).extracting(ContactHistoryItem::summary)
+                .containsExactly("종합백신 · 전화 · 본인 · 예약함", "미용 · 전화 · 본인 · 예약함");
+        assertThat(service.petHistory(12)).extracting(ContactHistoryItem::date)
+                .containsOnly(java.time.LocalDate.of(2026, 11, 25));
     }
 
     @Test

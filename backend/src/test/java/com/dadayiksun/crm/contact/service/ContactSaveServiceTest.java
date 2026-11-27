@@ -79,6 +79,21 @@ class ContactSaveServiceTest {
     }
 
     @Test
+    void 다음_연락_예정일은_전화_안_받음_행에만_남는다() {
+        service.save(request(null, LocalDate.of(2026, 11, 30), item(101, "NO_ANSWER"), item(103, "BOOKED")), STAFF);
+
+        assertThat(logs.rows).extracting(Row::nextContactDate).containsExactly(LocalDate.of(2026, 11, 30), null);
+    }
+
+    @Test
+    void 다음_연락_예정일이_오늘보다_앞이면_400이고_저장하지_않는다() {
+        assertThatThrownBy(() -> service.save(request(null, LocalDate.of(2026, 11, 24), item(101, "NO_ANSWER")), STAFF))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.fields()).extracting("field").containsExactly("nextContactDate"));
+        assertThat(logs.rows).isEmpty();
+    }
+
+    @Test
     void 정해진_5가지_밖의_결과는_400이고_아무것도_저장하지_않는다() {
         assertThatThrownBy(() -> service.save(request(null, null, item(101, "LATER")), STAFF))
                 .isInstanceOfSatisfying(ApiException.class, e -> {

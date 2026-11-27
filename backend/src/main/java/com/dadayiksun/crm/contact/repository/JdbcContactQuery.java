@@ -106,11 +106,32 @@ public class JdbcContactQuery implements ContactQuery {
                  ORDER BY c.contacted_at DESC, c.contact_log_id DESC
                  LIMIT :limit OFFSET :offset
                 """, new MapSqlParameterSource("id", guardianId).addValue("limit", limit).addValue("offset", offset),
-                (rs, i) -> new HistoryRow(rs.getLong("contact_log_id"),
-                        rs.getTimestamp("contacted_at").toLocalDateTime(), rs.getString("method"),
-                        rs.getString("result"), rs.getString("talked_with"), rs.getString("memo"),
-                        rs.getString("staff_name"), rs.getLong("created_by"), rs.getBoolean("is_edited"),
-                        rs.getBoolean("is_converted"), rs.getBoolean("is_mock_sms"), rs.getString("pet_name")));
+                (rs, i) -> historyRow(rs));
+    }
+
+    @Override
+    public List<PetContactRow> petHistory(long petId) {
+        return jdbc.query("""
+                SELECT c.contact_log_id, c.contacted_at, c.method, c.result, c.talked_with, c.memo, st.name AS staff_name,
+                       c.created_by, c.is_edited, c.is_converted, c.is_mock_sms, p.name AS pet_name,
+                       s.service_type, vt.name AS vaccine_type_name
+                  FROM contact_log c
+                  JOIN staff st ON st.staff_id = c.created_by
+                  JOIN pet p ON p.pet_id = c.pet_id
+                  JOIN schedule s ON s.schedule_id = c.schedule_id
+                  LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
+                 WHERE c.pet_id = :petId
+                 ORDER BY c.contacted_at DESC, c.contact_log_id DESC
+                """, Map.of("petId", petId), (rs, i) -> new PetContactRow(historyRow(rs),
+                rs.getString("service_type"), rs.getString("vaccine_type_name")));
+    }
+
+    private static HistoryRow historyRow(ResultSet rs) throws SQLException {
+        return new HistoryRow(rs.getLong("contact_log_id"),
+                rs.getTimestamp("contacted_at").toLocalDateTime(), rs.getString("method"),
+                rs.getString("result"), rs.getString("talked_with"), rs.getString("memo"),
+                rs.getString("staff_name"), rs.getLong("created_by"), rs.getBoolean("is_edited"),
+                rs.getBoolean("is_converted"), rs.getBoolean("is_mock_sms"), rs.getString("pet_name"));
     }
 
     @Override

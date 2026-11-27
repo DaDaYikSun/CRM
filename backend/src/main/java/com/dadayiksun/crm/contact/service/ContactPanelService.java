@@ -70,6 +70,22 @@ public class ContactPanelService {
                 r.createdBy() == staffId && date.equals(today), r.converted(), r.mockSms(), r.petName());
     }
 
+    /**
+     * 한 아이의 연락 줄 (아이 상세 통합 타임라인, FR-VIS-003). 한 번 연락에 같은 아이의 접종 · 미용을 같이 남기면 줄이 둘이라
+     * 요약 앞에 항목 이름을 붙인다: "종합백신 · 전화 · 본인 · 예약함".
+     * shortcut: editable은 늘 false (타임라인 계약에 직원이 없음). 기록 수정(#178)을 붙일 때 계약에 직원을 넘겨 채운다
+     */
+    public List<ContactHistoryItem> petHistory(long petId) {
+        return query.petHistory(petId).stream().map(p -> {
+            ContactQuery.HistoryRow r = p.row();
+            String item = "GROOMING".equals(p.serviceType()) ? "미용" : p.vaccineTypeName();
+            return new ContactHistoryItem("CONTACT", r.id(), r.contactedAt().toLocalDate(),
+                    item == null ? summary(r) : item + " · " + summary(r), r.memo(), r.staffName(),
+                    r.contactedAt().atZone(KstClock.ZONE).toOffsetDateTime(), r.edited(), false, r.converted(),
+                    r.mockSms(), r.petName());
+        }).toList();
+    }
+
     /** "전화 · 본인 · 전화 안 받음". 모의 발송만 한 행은 결과 대신 '모의 발송' */
     static String summary(ContactQuery.HistoryRow r) {
         String result = r.result() == null ? (r.mockSms() ? "모의 발송" : null)

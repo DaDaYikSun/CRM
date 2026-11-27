@@ -47,6 +47,9 @@ function Targets() {
   const [reload, setReload] = useState(0);
   const today = todayKst();
 
+  // 탭 · 쪽이 바뀌면 이전 줄을 바로 비운다. 저장 뒤 다시 부를 때(reload)는 비우지 않아 목록이 깜빡이지 않는다
+  useEffect(() => setData(null), [tab, page]);
+
   useEffect(() => {
     let stale = false;
     setError(null);

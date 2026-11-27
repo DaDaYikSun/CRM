@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration;
  * <ul>
  *   <li>{@link PetScheduleReader}: cycle #144 (PR #202) 머지 뒤 {@code CycleQueryService}를 감싼 구현으로 바꾼다</li>
  *   <li>{@link VisitTimelineReader}: visit #148 머지 뒤</li>
- *   <li>{@link ContactTimelineReader}: contact #153 머지 뒤 (스프린트 1은 더미 #147)</li>
+ *   <li>{@link ContactTimelineReader}: 실제 구현 {@link ContactTimeline}으로 바꿈 (#153)</li>
  * </ul>
  */
 @Configuration
@@ -35,13 +35,6 @@ class FakeReaders {
     VisitTimelineReader fakeVisitTimelineReader() {
         warn("VisitTimelineReader(C9 visit, #148)");
         return (petId, kinds) -> List.of();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(ContactTimelineReader.class)
-    ContactTimelineReader fakeContactTimelineReader() {
-        warn("ContactTimelineReader(C9 contact, #153)");
-        return petId -> List.of();
     }
 
     private static void warn(String what) {
