@@ -20,8 +20,8 @@ import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.common.response.ErrorResponse;
 import com.dadayiksun.crm.common.time.KstClock;
 import com.dadayiksun.crm.contact.domain.ContactResult;
+import com.dadayiksun.crm.contact.domain.FollowUpRule;
 import com.dadayiksun.crm.contact.dto.SaveContactRequest;
-import com.dadayiksun.crm.contact.dto.SaveContactResponse;
 import com.dadayiksun.crm.contact.repository.ContactLogRepository;
 import com.dadayiksun.crm.contact.repository.ContactQuery;
 
@@ -33,15 +33,13 @@ import com.dadayiksun.crm.contact.repository.ContactQuery;
  *   <li>예정은 이 보호자 아이의 진행 중 주기여야 한다. 아니면 400. 무지개다리 아이면 409 PET_RAINBOW</li>
  *   <li>다음 연락 예정일은 '전화 안 받음' 행에만 남기고, 비었으면 내일(한국 시간)로 채운다 (POL-TGT-006). 오늘보다 앞이면 400</li>
  *   <li>같은 트랜잭션에서 C14 후속 처리를 부른다. schedule · guardian은 쓰지 않는다 (K17 ①)</li>
- *   <li>같은 요청 두 번은 {@code IdempotencyFilter}(K15)가 막는다. 응답은 트랜잭션 안에서 만든다 (#193)</li>
+ *   <li>같은 요청 두 번은 {@code IdempotencyFilter}(K15)가 막는다. 응답 값은 트랜잭션 안에서 다 정한다 (#193)</li>
  * </ul>
  */
 @Service
 public class ContactSaveService {
 
     static final int MEMO_MAX = 200;
-    /** '전화 안 받음' 다음 연락 기본 간격 (POL-TGT-006 고정값 1일). 프론트 contactRules의 NO_ANSWER_RETRY_DAYS와 같은 값 */
-    static final int NO_ANSWER_RETRY_DAYS = 1;
     private static final Set<String> METHODS = Set.of("PHONE", "SMS");
     private static final Set<String> TALKED_WITH = Set.of("SELF", "FAMILY");
 
@@ -58,8 +56,12 @@ public class ContactSaveService {
         this.clock = clock;
     }
 
+    /** 저장한 묶음과 후속 처리 결과. 응답과 커밋 뒤 문자 보내기는 {@link ContactSmsDispatcher}가 한다 (K21) */
+    public record Saved(String contactGroupId, ContactFollowUpService.Outcome followUp) {
+    }
+
     @Transactional
-    public SaveContactResponse save(SaveContactRequest req, long staffId) {
+    public Saved save(SaveContactRequest req, long staffId) {
         List<ErrorResponse.FieldError> errors = new ArrayList<>();
         if (req.guardianId() == null) {
             errors.add(required("guardianId", "보호자"));
@@ -119,7 +121,7 @@ public class ContactSaveService {
         }
 
         String groupId = UUID.randomUUID().toString();
-        LocalDate retryDefault = today.plusDays(NO_ANSWER_RETRY_DAYS);
+        LocalDate retryDefault = today.plusDays(FollowUpRule.NO_ANSWER_RETRY_DAYS);
         for (int i = 0; i < items.size(); i++) {
             ContactQuery.OpenSchedule s = open.get(items.get(i).scheduleId());
             ContactResult result = results.get(i);
@@ -129,8 +131,7 @@ public class ContactSaveService {
             logs.insert(new ContactLogRepository.Row(groupId, req.guardianId(), s.petId(), s.scheduleId(),
                     req.method(), result.name(), req.talkedWith(), memo, next, now, staffId));
         }
-        followUp.apply(groupId);
-        return new SaveContactResponse(groupId, null);
+        return new Saved(groupId, followUp.apply(groupId));
     }
 
     private static ErrorResponse.FieldError required(String field, String label) {

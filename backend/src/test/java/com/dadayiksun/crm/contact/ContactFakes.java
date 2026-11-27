@@ -66,6 +66,19 @@ public final class ContactFakes {
             return petHistory;
         }
 
+        public final List<GroupItem> groupItems = new ArrayList<>();
+        public final java.util.Map<String, String> templates = new java.util.HashMap<>();
+
+        @Override
+        public List<GroupItem> groupItems(String contactGroupId) {
+            return groupItems;
+        }
+
+        @Override
+        public String messageTemplate(String templateCode) {
+            return templates.get(templateCode);
+        }
+
         @Override
         public List<OpenSchedule> openSchedules(Collection<Long> scheduleIds) {
             return open.stream().filter(s -> scheduleIds.contains(s.scheduleId())).toList();
@@ -79,14 +92,26 @@ public final class ContactFakes {
         public void insert(Row row) {
             rows.add(row);
         }
+
+        public final List<MockSmsRow> mockSms = new ArrayList<>();
+
+        @Override
+        public void insertMockSms(MockSmsRow row) {
+            mockSms.add(row);
+        }
     }
 
     public static class FollowUp extends ContactFollowUpService {
         public final List<String> applied = new ArrayList<>();
 
+        public FollowUp() {
+            super(null, null, null, null, null);
+        }
+
         @Override
-        public void apply(String contactGroupId) {
+        public Outcome apply(String contactGroupId) {
             applied.add(contactGroupId);
+            return new Outcome(List.of(), null);
         }
     }
 }

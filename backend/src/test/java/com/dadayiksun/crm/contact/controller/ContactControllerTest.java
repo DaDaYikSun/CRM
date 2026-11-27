@@ -31,7 +31,9 @@ import com.dadayiksun.crm.common.security.JsonSecurityHandlers;
 import com.dadayiksun.crm.common.security.SecurityConfig;
 import com.dadayiksun.crm.common.web.IdempotencyFilter;
 import com.dadayiksun.crm.contact.dto.ContactPanelResponse;
-import com.dadayiksun.crm.contact.dto.SaveContactResponse;
+import com.dadayiksun.crm.contact.service.ContactFollowUpService;
+import com.dadayiksun.crm.contact.service.ContactSmsDispatcher;
+import com.dadayiksun.crm.contact.sms.SmsSender;
 import com.dadayiksun.crm.contact.service.ContactPanelService;
 import com.dadayiksun.crm.contact.service.ContactSaveService;
 
@@ -39,7 +41,7 @@ import jakarta.servlet.http.Cookie;
 
 /** 주소 · 응답 모양 (API 설계 3-6), 미용사 403 (T3 · T10), 저장 두 번 막기 (K15), page 규칙 (K16 ⑥). */
 @WebMvcTest(controllers = ContactController.class)
-@Import({SecurityConfig.class, JsonSecurityHandlers.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, JsonSecurityHandlers.class, GlobalExceptionHandler.class, ContactSmsDispatcher.class})
 class ContactControllerTest {
 
     private static final String BODY = """
@@ -54,6 +56,8 @@ class ContactControllerTest {
     private ContactPanelService panelService;
     @MockitoBean
     private ContactSaveService saveService;
+    @MockitoBean
+    private SmsSender smsSender;
 
     private Cookie csrf;
 
@@ -93,7 +97,8 @@ class ContactControllerTest {
     @Test
     void 저장은_201이고_같은_요청을_두_번_보내도_한_번만_저장한다() throws Exception {
         MockHttpSession desk = AuthTestSupport.session(5L, Role.DESK);
-        when(saveService.save(any(), eq(5L))).thenReturn(new SaveContactResponse("g-uuid", null));
+        when(saveService.save(any(), eq(5L))).thenReturn(new ContactSaveService.Saved("g-uuid",
+                new ContactFollowUpService.Outcome(List.of(), null)));
 
         save(desk, "same-key").andExpect(status().isCreated()).andExpect(jsonPath("$.data.contactGroupId").value("g-uuid"));
         save(desk, "same-key").andExpect(status().isCreated()).andExpect(jsonPath("$.data.contactGroupId").value("g-uuid"));
