@@ -207,6 +207,30 @@ class CycleServiceTest {
         }
 
         @Test
+        void 늦게_입력한_접종으로_횟수가_바뀌면_다음_예정일을_다시_계산한다() {
+            // PR #202 CodeRabbit 예시: 1회 행 A, 2회 행 B(30일), 반복 행 C(365일)
+            long type = 50L;
+            source.rules.put(type, List.of(
+                    new VaccineRule(PRIMARY, 0, 10, 30, 1),
+                    new VaccineRule(PRIMARY, 10, 60, 30, 2),
+                    new VaccineRule(BOOSTER, 60, null, 365, null)));
+            LocalDate birth = TODAY.minusDays(40);
+            source.pets.put(1L, new PetProfile(1, birth, true, 70, birth));
+            source.visits.add(new VisitInfo(31, 1, ServiceType.VACCINE, type, birth));
+            source.visits.add(new VisitInfo(32, 1, ServiceType.VACCINE, type, birth.plusDays(30)));
+            schedules.put(new Schedule(1, 1, ServiceType.VACCINE, type, birth, Schedule.Status.DONE, 14, 31L, birth, 0, null, "NONE", 0, null));
+            schedules.put(new Schedule(2, 1, ServiceType.VACCINE, type, birth.plusDays(30), Schedule.Status.DONE, 14, 32L,
+                    birth.plusDays(30), 0, null, "NONE", 0, null));
+            schedules.put(new Schedule(3, 1, ServiceType.VACCINE, type, birth.plusDays(60), Schedule.Status.OPEN, 14,
+                    null, null, null, null, "NONE", 0, null));
+
+            source.visits.add(new VisitInfo(33, 1, ServiceType.VACCINE, type, birth.plusDays(15)));
+            service.onVisitRecorded(33);
+
+            assertThat(schedules.findById(3).orElseThrow().dueDate()).isEqualTo(birth.plusDays(395));
+        }
+
+        @Test
         void 없는_방문이면_멈춘다() {
             assertThatThrownBy(() -> service.onVisitRecorded(999)).isInstanceOf(IllegalStateException.class);
         }
@@ -253,6 +277,25 @@ class CycleServiceTest {
             service.recalculatePet(1);
             assertThat(schedules.findById(1).orElseThrow().status()).isEqualTo(Schedule.Status.VOID);
             assertThat(schedules.findById(2).orElseThrow().status()).isEqualTo(Schedule.Status.OPEN);
+        }
+
+        @Test
+        void 다시_계산한_예정일이_지난_날짜면_오늘로_올리고_누락이_생기지_않는다() {
+            // (2) 프로필 바뀜: 미래 주기의 새 예정일이 과거로 나옴 (기록 없음, 등록일도 과거)
+            source.pets.put(1L, new PetProfile(1, LocalDate.of(2020, 1, 1), true, 70, LocalDate.of(2026, 1, 1)));
+            schedules.put(new Schedule(1, 1, ServiceType.VACCINE, RABIES, LocalDate.of(2027, 1, 1), Schedule.Status.OPEN,
+                    14, null, null, null, null, "NONE", 0, null));
+            // (1) 규칙 활성화: 열린 주기가 없는 새 종류의 예정일이 과거로 나옴 (오래전 기록)
+            long newType = 60L;
+            source.rules.put(newType, RABIES_RULES);
+            source.visits.add(new VisitInfo(40, 1, ServiceType.VACCINE, newType, LocalDate.of(2021, 1, 1)));
+
+            service.recalculatePet(1);
+
+            assertThat(schedules.findById(1).orElseThrow().dueDate()).isEqualTo(TODAY);
+            assertThat(open(1, ServiceType.VACCINE, newType).dueDate()).isEqualTo(TODAY);
+            new MissJudgementJob(schedules, CycleFakes.clockAt(TODAY.plusDays(1))).run();
+            assertThat(schedules.rows).allMatch(s -> s.missedAt() == null);
         }
 
         @Test

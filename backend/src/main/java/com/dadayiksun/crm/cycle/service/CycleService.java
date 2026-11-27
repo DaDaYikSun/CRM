@@ -29,7 +29,8 @@ import com.dadayiksun.crm.cycle.repository.ScheduleRepository;
  *
  * <ul>
  *   <li>새 주기를 만들 때 그때의 누락 기준(MISS_THRESHOLD_DAYS)을 행에 복사한다. 설정을 바꿔도 이미 열린 주기는 그대로 (POL-MISS-001)</li>
- *   <li>다시 계산은 예정일이 오늘 이후 · 당일인 OPEN 행만 고친다. 지난 행 · 누락 판정 · 완료 행은 그대로 (POL-CYC-005)</li>
+ *   <li>다시 계산은 예정일이 오늘 이후 · 당일인 OPEN 행만 고친다. 지난 행 · 누락 판정 · 완료 행은 그대로 (POL-CYC-005).
+ *       다시 계산한 예정일이 지난 날짜면 오늘로 올린다 (PR #202 리뷰 결정)</li>
  *   <li>규칙이 없어진 접종 종류 · 무지개다리 아이의 아직 오지 않은 OPEN 행은 VOID (DB 설계 5-1)</li>
  * </ul>
  */
@@ -80,6 +81,8 @@ public class CycleService {
             if (s.missedAt() != null && MissJudgement.isWithinThreshold(visit.visitDate(), s.dueDate(), s.missThresholdDays())) {
                 schedules.clearMissedAt(s.scheduleId());
             }
+            // 늦게 들어온 접종 기록으로 횟수가 바뀌면 다음 예정일도 바뀐다: 아직 오지 않은 예정일만 다시 계산 (FR-CYC-003)
+            recalculatePet(visit.petId());
             return new VisitOutcome(null, openId(visit));
         }
 
@@ -152,8 +155,10 @@ public class CycleService {
         apply(pet.petId(), ServiceType.GROOMING, null, Optional.of(groom.dueDate()), threshold, today, recalc);
     }
 
-    private void apply(long petId, ServiceType service, Long typeId, Optional<LocalDate> due, int threshold,
+    private void apply(long petId, ServiceType service, Long typeId, Optional<LocalDate> computed, int threshold,
                        LocalDate today, boolean recalc) {
+        // 다시 계산이 지난 날짜를 내면 오늘로 올린다. 다시 계산으로 지나간 누락이 생기지 않게 (POL-CYC-005, PR #202 리뷰 결정)
+        Optional<LocalDate> due = recalc ? computed.map(d -> d.isBefore(today) ? today : d) : computed;
         Optional<Schedule> open = schedules.findOpen(petId, service, typeId);
         if (open.isEmpty()) {
             due.ifPresent(d -> schedules.insertOpen(petId, service, typeId, d, threshold));
