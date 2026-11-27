@@ -5,8 +5,11 @@
 // - 저장 두 번 막기: 저장 요청에 Idempotency-Key 헤더를 싣는다 (K15)
 //   화면은 저장 버튼을 누를 때마다 새 키를 만들지 말고, 폼 하나에 키 하나를 만들어 저장이 끝날 때까지 같은 키를 쓴다.
 //   (newIdempotencyKey()로 만들어 { idempotencyKey } 로 넘긴다. 넘기지 않으면 요청마다 새 키)
+// - 로그인 만료: 401 SESSION_EXPIRED면 로그인 화면(/login?expired=1&next=보던 주소)으로 보낸다 (FR-AUTH-003, #167).
+//   오류는 그대로 던지므로 화면은 평소처럼 실패를 다룬다. 로그인 화면에서는 보내지 않는다
 
 import type { ApiErrorBody, ErrorCode, FieldError } from "@/types/common";
+import { isLoginPath, loginPath } from "./loginPath";
 
 const CSRF_COOKIE = "XSRF-TOKEN";
 const CSRF_HEADER = "X-XSRF-TOKEN";
@@ -85,7 +88,18 @@ function shouldRetryRead(error: unknown): boolean {
   return true;
 }
 
-export function createClient(fetcher: typeof fetch = (...args) => fetch(...args)) {
+/** 브라우저에서 만료를 만나면 로그인 화면으로. 서버(미들웨어 · 서버 컴포넌트)나 로그인 화면이면 아무것도 안 한다 */
+export function redirectToLogin(): void {
+  if (typeof window === "undefined") return;
+  const { pathname, search } = window.location;
+  if (isLoginPath(pathname)) return;
+  window.location.assign(loginPath(`${pathname}${search}`, true));
+}
+
+export function createClient(
+  fetcher: typeof fetch = (...args) => fetch(...args),
+  onSessionExpired: () => void = redirectToLogin,
+) {
   async function send<T>(method: Method, path: string, body?: unknown, options: SaveOptions = {}): Promise<T> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -111,7 +125,12 @@ export function createClient(fetcher: typeof fetch = (...args) => fetch(...args)
     } catch {
       throw new ApiError(0, "INTERNAL_ERROR", method === "GET" ? LOAD_FAILED_MESSAGE : SAVE_FAILED_MESSAGE);
     }
-    return parse<T>(response, method);
+    try {
+      return await parse<T>(response, method);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "SESSION_EXPIRED") onSessionExpired();
+      throw error;
+    }
   }
 
   return {
