@@ -36,7 +36,7 @@ public interface ContactQuery {
     List<OpenSchedule> openSchedules(Collection<Long> scheduleIds);
 
     /**
-     * 한 번 저장한 연락 결과 행들과 그 주기 · 아이 · 보호자 값 (후속 처리 C14). 모의 발송 행은 빠진다.
+     * 한 번 저장한 연락 결과 행들과 그 주기 · 아이 · 보호자 값 (후속 처리 C14). 결과가 있는 행만 읽는다: 문자로 남긴 결과는 들어가고, 2일차 자동 문자처럼 결과 없는 모의 발송 행은 빠진다 (#240).
      * 그 주기(schedule) 행을 트랜잭션 끝까지 잠근다: 같은 항목에 동시에 온 저장이 횟수를 덮어쓰거나 2일차 문자를 두 번 남기지 않게
      */
     List<GroupItem> groupItems(String contactGroupId);
