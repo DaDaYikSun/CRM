@@ -147,7 +147,7 @@ public class JdbcContactQuery implements ContactQuery {
                   JOIN pet p ON p.pet_id = c.pet_id
                   JOIN guardian g ON g.guardian_id = c.guardian_id
                   LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
-                 WHERE c.contact_group_id = :groupId AND c.is_mock_sms = 0
+                 WHERE c.contact_group_id = :groupId AND c.result IS NOT NULL
                  ORDER BY c.contact_log_id
                  FOR UPDATE OF s
                 """, Map.of("groupId", contactGroupId), (rs, i) -> new GroupItem(rs.getLong("schedule_id"),
