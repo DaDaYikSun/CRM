@@ -18,9 +18,10 @@ public class JdbcDashboardMetricsQuery implements DashboardMetricsQuery {
 
     /**
      * 재방문 · 누락 대상 주기: 기간 안에 예정일이 된 주기 중 결과가 정해진 것(완료 또는 누락 판정 저장),
-     * VOID가 아니고 ACTIVE 아이, 접종은 주요 접종만 (POL-MISS-003 · 004, API 설계 3-8, DB 설계 5-4)
+     * VOID가 아니고 ACTIVE 아이, 접종은 주요 접종만 (POL-MISS-003 · 004, API 설계 3-8, DB 설계 5-4).
+     * 추이 · 분포(#185, JdbcDashboardTrendQuery)도 같은 대상을 쓴다
      */
-    private static final String TARGET_CYCLES = """
+    static final String TARGET_CYCLES = """
               FROM schedule s
               JOIN pet p ON p.pet_id = s.pet_id AND p.status = 'ACTIVE'
               LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id

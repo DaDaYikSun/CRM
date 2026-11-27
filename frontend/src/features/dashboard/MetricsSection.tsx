@@ -9,6 +9,7 @@ import { getMetrics, type Metrics } from "@/lib/api/dashboard";
 import { loadFailure, type Failure } from "@/lib/api/failure";
 import { todayKst } from "@/lib/utils/date";
 import { METRICS_COPY, hasContacts, methodRows, resultRows, revisitCards, type ConversionRow } from "./metrics";
+import { TrendSection } from "./TrendSection";
 import { PERIOD_GUIDE, PERIOD_OPTIONS, customPeriodError, presetPeriod, type Period, type PeriodKind } from "./period";
 import styles from "./dashboard.module.css";
 
@@ -181,6 +182,8 @@ export function MetricsSection() {
           )}
         </section>
       )}
+
+      <TrendSection period={period} />
     </>
   );
 }
