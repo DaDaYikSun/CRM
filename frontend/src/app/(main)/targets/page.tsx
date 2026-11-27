@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { PageGuide } from "@/components/ui/PageGuide";
 import { loadFailure, type Failure } from "@/lib/api/failure";
 import { getTargetSummary, getTargets, type TargetLine, type TargetSummary, type TargetTab } from "@/lib/api/target";
+import { useLeaveConfirm } from "@/lib/hooks/useLeaveConfirm";
 import { todayKst } from "@/lib/utils/date";
 import { TargetRow } from "@/features/target/TargetRow";
 import styles from "@/features/target/target.module.css";
@@ -17,6 +18,8 @@ import type { PageData } from "@/types/common";
 // S-03 연락 대상 목록 (FR-TGT-001 ~ 003). 문구는 정책 4-2 · 4-4, 배치는 화면 설계 SCR-S03.
 // 오늘 · 이번 주는 서버가 한국 시간으로 판단한다 (POL-TGT-001). ?tab= 으로 탭을 연다 (대시보드 카드 #156).
 // 줄을 누르면 목록을 그대로 두고 오른쪽에 연락 패널(S-04, #153)이 열린다. 저장하면 목록 · 탭 숫자를 다시 부른다.
+// 패널에 저장하지 않은 입력이 있으면 다른 보호자 줄 · [닫기] · 링크에 나가기 경고 (FR-COM-003, #243).
+// 줄 클릭은 링크가 아니라 훅이 자동으로 못 잡으므로 confirmLeave로 감싼다.
 const EMPTY: Record<TargetTab, string> = {
   today: "오늘 연락할 아이가 없습니다. 이번 주 탭에서 미리 연락할 수 있습니다.",
   week: "이번 주 연락할 아이가 없습니다.",
@@ -53,7 +56,15 @@ function Targets() {
   };
   const [selected, setSelected] = useState<number | null>(null);
   const [reload, setReload] = useState(0);
+  const [panelDirty, setPanelDirty] = useState(false);
+  const { leaveDialog, confirmLeave } = useLeaveConfirm(panelDirty);
   const today = todayKst();
+  // 패널이 바뀌거나 닫히면 이전 입력은 사라지므로 dirty도 바로 내린다 (새 패널이 다시 알려 준다)
+  const select = (guardianId: number | null) =>
+    confirmLeave(() => {
+      setPanelDirty(false);
+      setSelected(guardianId);
+    });
 
   // 탭 · 쪽이 바뀌면 이전 줄을 바로 비운다. 저장 뒤 다시 부를 때(reload)는 비우지 않아 목록이 깜빡이지 않는다
   useEffect(() => setData(null), [tab, page]);
@@ -120,7 +131,7 @@ function Targets() {
                 line={line}
                 today={today}
                 selected={selected === line.guardianId}
-                onClick={() => setSelected(line.guardianId)}
+                onClick={() => line.guardianId !== selected && select(line.guardianId)}
               />
             ))}
           </div>
@@ -145,7 +156,14 @@ function Targets() {
     <div className={contactStyles.split}>
       {list}
       {/* key: 보호자가 바뀌면 패널을 새로 만들어 이전 보호자의 정보 · 입력 · 늦게 끝난 저장이 섞이지 않게 한다 */}
-      <ContactPanel key={selected} guardianId={selected} onSaved={() => setReload((n) => n + 1)} onClose={() => setSelected(null)} />
+      <ContactPanel
+        key={selected}
+        guardianId={selected}
+        onSaved={() => setReload((n) => n + 1)}
+        onClose={() => select(null)}
+        onDirtyChange={setPanelDirty}
+      />
+      {leaveDialog}
     </div>
   );
 }

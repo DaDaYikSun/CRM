@@ -29,3 +29,21 @@ export function canSave(
   if (service === "VACCINE" && !vaccineTypeId) return false;
   return visitDate !== "" && visitDate <= today && memo.length <= MEMO_MAX;
 }
+
+/**
+ * 입력한 것이 있어 닫으면 사라지는지 (나가기 경고, FR-COM-003, #243). 처음 연 상태(구분 · 연 날짜 · 빈 칸)와 다르면 true.
+ * @param initialService 모달을 연 구분 (미용사는 늘 미용)
+ * @param openedDate 모달을 연 날(한국 시간). 연 채로 자정을 넘겨도 비교 기준은 그대로
+ */
+export function isVisitDirty(
+  input: { service: VisitServiceType; vaccineTypeId: string; visitDate: string; memo: string },
+  initialService: VisitServiceType,
+  openedDate: string,
+): boolean {
+  return (
+    input.service !== initialService ||
+    input.vaccineTypeId !== "" ||
+    input.visitDate !== openedDate ||
+    input.memo.trim() !== ""
+  );
+}
