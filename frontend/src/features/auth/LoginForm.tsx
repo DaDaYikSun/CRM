@@ -5,22 +5,26 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { ApiError } from "@/lib/api/client";
-import { login } from "@/lib/api/auth";
+import { login, type CurrentStaff } from "@/lib/api/auth";
 import { afterLoginPath, SESSION_EXPIRED_NOTICE } from "./returnTo";
 import styles from "./LoginForm.module.css";
 
 const ERROR_ID = "login-error";
 
 // S-01 로그인 (FR-AUTH-001). 틀리면 서버가 준 정책 4-2 문구를 그대로 보여 준다. 실패 횟수로 잠그지 않는다 (POL-ACC-006).
+// 임시 비밀번호로 로그인하면 onMustChangePassword로 새 비밀번호 카드로 넘긴다 (#150, LoginScreen).
 // 로그인이 만료돼 왔으면(expired) 정책 4-4 '세션 만료' 안내를 위에 두고, 로그인하면 보던 화면(next)으로 돌아간다 (#167).
 export interface LoginFormProps {
+  onMustChangePassword?: (staff: CurrentStaff) => void;
+  /** [로그인]을 눌렀을 때 (LoginScreen이 먼저 부른 /me 응답을 버리게) */
+  onSubmitStart?: () => void;
   /** 다시 로그인한 뒤 돌아갈 주소 (/login?next=) */
   next?: string | null;
   /** 로그인이 만료돼서 왔는가 (/login?expired=1) */
   expired?: boolean;
 }
 
-export function LoginForm({ next = null, expired = false }: LoginFormProps) {
+export function LoginForm({ onMustChangePassword, onSubmitStart, next = null, expired = false }: LoginFormProps) {
   const router = useRouter();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
@@ -29,10 +33,15 @@ export function LoginForm({ next = null, expired = false }: LoginFormProps) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    onSubmitStart?.();
     setLoading(true);
     setError(null);
     try {
       const staff = await login(loginId, password);
+      if (staff.mustChangePassword && onMustChangePassword) {
+        onMustChangePassword(staff);
+        return;
+      }
       router.replace(afterLoginPath(next, staff.role));
       router.refresh();
     } catch (e) {
