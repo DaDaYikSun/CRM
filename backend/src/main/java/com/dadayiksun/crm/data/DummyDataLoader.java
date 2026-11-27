@@ -128,13 +128,11 @@ public class DummyDataLoader implements ApplicationRunner {
 
         List<Map<String, String>> vaccinations = DummyCsv.read("vaccinations.csv");
         List<Map<String, String>> groomings = DummyCsv.read("groomings.csv");
+        // CSV의 pet_id가 반려견 CSV에 없으면 멈춘다 (한 트랜잭션이라 아무것도 남지 않아 고친 뒤 다시 켜면 된다, PR #226 리뷰)
         Map<String, List<DummyTimeline.Event>> eventsByPet = new HashMap<>();
-        vaccinations.forEach(v -> eventsByPet.computeIfAbsent(v.get("pet_id"), k -> new ArrayList<>())
-                .add(DummyTimeline.visit("VACCINE", v)));
-        groomings.forEach(g -> eventsByPet.computeIfAbsent(g.get("pet_id"), k -> new ArrayList<>())
-                .add(DummyTimeline.visit("GROOMING", g)));
-        DummyCsv.read("contacts.csv").forEach(c -> eventsByPet.computeIfAbsent(c.get("pet_id"), k -> new ArrayList<>())
-                .add(DummyTimeline.contact(c)));
+        vaccinations.forEach(v -> eventsOf(eventsByPet, petIds, v).add(DummyTimeline.visit("VACCINE", v)));
+        groomings.forEach(g -> eventsOf(eventsByPet, petIds, g).add(DummyTimeline.visit("GROOMING", g)));
+        DummyCsv.read("contacts.csv").forEach(c -> eventsOf(eventsByPet, petIds, c).add(DummyTimeline.contact(c)));
 
         int contacts = 0;
         int contactsBefore = 0;
@@ -164,11 +162,15 @@ public class DummyDataLoader implements ApplicationRunner {
                 }
             }
 
-            // 무지개다리 아이: 기록을 다 넣은 뒤 상태를 바꾸고 아직 오지 않은 예정 일정을 정리한다 (DB 설계 5-1)
+            // 무지개다리 아이: 기록을 다 넣은 뒤 상태를 바꾸고 다시 계산한다 (DB 설계 5-1).
+            // 다시 계산은 '오늘' 기준이라, 무지개다리 날부터 적재일 전까지 예정이 된 OPEN 주기도 그날 기준으로 VOID한다
+            // (그날 표시했다면 VOID됐을 행, POL-END-002). 그날 전에 이미 지난 주기 · 판정은 그대로 (PR #226 리뷰)
             if ("RAINBOW".equals(p.get("status"))) {
-                jdbc.update("UPDATE pet SET status = 'RAINBOW', rainbow_at = ? WHERE pet_id = ?",
-                        time(p.get("rainbow_at")), petId);
+                Timestamp rainbowAt = time(p.get("rainbow_at"));
+                jdbc.update("UPDATE pet SET status = 'RAINBOW', rainbow_at = ? WHERE pet_id = ?", rainbowAt, petId);
                 cycle.recalculatePet(petId);
+                jdbc.update("UPDATE schedule SET status = 'VOID' WHERE pet_id = ? AND status = 'OPEN' AND due_date >= ?",
+                        petId, Date.valueOf(rainbowAt.toLocalDateTime().toLocalDate()));
             }
         }
         int missed = missJudgement.run();
@@ -227,6 +229,12 @@ public class DummyDataLoader implements ApplicationRunner {
                 p.get("weight_kg").isEmpty() ? null : new BigDecimal(p.get("weight_kg")),
                 "ACTIVE", null, date(p.get("contact_hold_until")), // 무지개다리는 기록을 다 넣은 뒤 바꾼다
                 require(staffIds, p.get("created_by_login_id"), "직원"), time(p.get("created_at")));
+    }
+
+    private static List<DummyTimeline.Event> eventsOf(Map<String, List<DummyTimeline.Event>> eventsByPet,
+                                                     Map<String, Long> petIds, Map<String, String> row) {
+        require(petIds, row.get("pet_id"), "반려견");
+        return eventsByPet.computeIfAbsent(row.get("pet_id"), k -> new ArrayList<>());
     }
 
     private long insertVisit(long petId, DummyTimeline.Event e, Map<String, Long> vaccineIds, Map<String, Long> staffIds) {

@@ -39,7 +39,7 @@ export function formatPhone(digits) {
 /**
  * 접종 규칙(vaccine_rule) 행을 마이그레이션 순서대로 읽는다 (V2 · V4 …). 앱의 예정일 계산과 같은 값을 쓰기 위해서다.
  * INSERT … SELECT vaccine_type_id, 'PHASE', from, to, interval, count … WHERE code = 'X' 와
- * UPDATE … SET r.age_from_days = N … WHERE t.code = 'X' AND r.phase = 'P' 두 꼴만 안다. 다른 꼴이 생기면 여기를 고친다.
+ * UPDATE … SET r.칸 = 값, … WHERE t.code = 'X' AND r.phase = 'P' 두 꼴만 안다. 다른 꼴이 생기면 여기를 고친다.
  * 돌려주는 값: { code: [{ phase, from, to, interval, count }] } (나이 순)
  */
 export function seedVaccineRules() {
@@ -55,11 +55,11 @@ export function seedVaccineRules() {
         (rules[ins[6]] ??= []).push({ phase: ins[1], from: num(ins[2]), to: num(ins[3]), interval: num(ins[4]), count: num(ins[5]) });
         continue;
       }
-      const upd = stmt.match(/UPDATE vaccine_rule[\s\S]*?SET\s+r\.age_from_days\s*=\s*(\d+)[\s\S]*?WHERE t\.code = '(\w+)' AND r\.phase = '(\w+)'/);
+      const upd = stmt.match(/UPDATE vaccine_rule[\s\S]*?SET\s+([\s\S]*?)\s+WHERE t\.code = '(\w+)' AND r\.phase = '(\w+)'/);
       if (upd) {
         const row = (rules[upd[2]] ?? []).find((r) => r.phase === upd[3]);
         if (!row) throw new Error(`${f}: 고칠 접종 규칙 ${upd[2]} ${upd[3]}이 없다`);
-        row.from = Number.parseInt(upd[1], 10);
+        applyRuleSet(row, upd[1], f);
       } else if (/^\s*(INSERT INTO|UPDATE|DELETE FROM) vaccine_rule/.test(stmt)) {
         throw new Error(`${f}: 읽지 못한 vaccine_rule 문장이 있다 (seedVaccineRules를 고친다)`);
       }
@@ -67,4 +67,21 @@ export function seedVaccineRules() {
   }
   for (const code of Object.keys(rules)) rules[code].sort((a, b) => a.from - b.from);
   return rules;
+}
+
+// UPDATE의 SET 칸 → 규칙 행 이름. note는 계산에 안 써서 넘긴다. 그 밖의 칸이 오면 멈춘다 (DB와 더미 계산이 어긋나지 않게, PR #226 리뷰)
+const RULE_SET_COLUMNS = { age_from_days: 'from', age_to_days: 'to', interval_days: 'interval', dose_count: 'count', note: null };
+
+/** "r.age_from_days = 112, r.note = '…'"를 규칙 행에 반영한다. 모르는 칸 · 읽지 못한 꼴이면 오류 */
+export function applyRuleSet(row, setClause, where = 'SQL') {
+  const parts = [];
+  const re = /\s*r\.(\w+)\s*=\s*('(?:[^']|'')*'|NULL|\d+)\s*(,|$)/y;
+  let m;
+  while (re.lastIndex < setClause.length && (m = re.exec(setClause))) parts.push([m[1], m[2]]);
+  if (!parts.length || re.lastIndex < setClause.trimEnd().length) throw new Error(`${where}: 읽지 못한 vaccine_rule UPDATE SET: ${setClause.trim().slice(0, 60)}`);
+  for (const [col, val] of parts) {
+    if (!(col in RULE_SET_COLUMNS)) throw new Error(`${where}: vaccine_rule UPDATE의 ${col} 칸은 읽지 못한다 (seed-settings.mjs를 고친다)`);
+    const key = RULE_SET_COLUMNS[col];
+    if (key) row[key] = val === 'NULL' ? null : Number.parseInt(val, 10);
+  }
 }

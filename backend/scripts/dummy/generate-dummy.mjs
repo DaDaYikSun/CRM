@@ -438,7 +438,7 @@ function nextGroomDue(p, dates) {
 // 주기마다 누락 확률. 지표는 아이 기준(기간 안 주기 중 하나라도 누락이면 누락, T15)이라
 // 주기 하나의 확률은 매뉴얼 목표(도입 전 30% 안팎 · 도입 뒤 15~20%)보다 낮게 둔다. 맞춘 값은 끝에 출력한다.
 const CYCLE_MISS = {
-  VACCINE: { before: 0.17, after: 0.22 },
+  VACCINE: { before: 0.17, after: 0.27 },
   GROOMING: { before: 0.02, after: 0.03 },
 };
 const JUDGE_DAY = addDays(END, 1); // 적재 뒤 판정 작업이 도는 날 (END 다음 날로 본다)
@@ -464,7 +464,8 @@ function outcome(p, service, code, due, missBase) {
   const notYet = visit === null || before(due, visit);
   if (after && notYet && canContact(p._owner) && inData(due) && before(due, END)) {
     const day = addDays(due, randInt(0, 2));
-    if (!before(END, day) && !onHold(p, day)) {
+    // 연락은 그 주기의 방문보다 앞서야 한다. 방문 뒤 연락은 다음 주기에 붙으므로 만들지 않는다 (PR #226 CodeRabbit)
+    if (!before(END, day) && !onHold(p, day) && (visit === null || before(day, visit))) {
       const conv = contactFor(p, service, code, due, day);
       // 연락이 재방문으로 이어지면 기준 안에 온다. 이어지지 않으면 원래 정해진 대로 (연락 때문에 더 늦어지지는 않는다)
       if (chance(conv)) visit = addDays(day, randInt(1, Math.max(1, Math.min(12, diffDays(day, addDays(due, MISS_THRESHOLD_DAYS))))));
@@ -500,6 +501,7 @@ function simulate(p, service, code, history, opts = {}) {
     const floor = opts.floor ?? BASELINE_FROM;
     if (before(due, floor)) {
       const v = randDate(floor, minDate(addDays(floor, 30), END));
+      if (!alive(p, v)) { cycles.push({ p, service, code, due, visit: null }); break; } // 무지개다리 뒤 방문은 없다
       cycles.push({ p, service, code, due, visit: v });
       record(v);
       visits++;
@@ -508,7 +510,9 @@ function simulate(p, service, code, history, opts = {}) {
     }
     let v = opts.forceLate?.(visits) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 20, MISS_THRESHOLD_DAYS + 60)) : outcome(p, service, code, due, opts.missBase ?? 1);
     if (v && (before(END, v) || !alive(p, v))) v = null;
-    if (v && before(v, floor)) v = floor; // 제때(예정일 며칠 전) 방문이 기록 시작일 앞으로 가지 않게
+    // 제때(예정일 며칠 전) 방문이 기록 시작일 · 등록일 앞으로 가지 않게. 등록일 전 방문은 적재기가 등록 전 과거 기록으로 넣어 주기가 어긋난다
+    const lower = maxDate(floor, p._reg);
+    if (v && before(v, lower)) v = lower;
     if (v === null) {
       // 안 옴: 주기는 열린 채 판정된다. 한참 뒤 늦게라도 오는 아이도 있다
       const late = addDays(due, randInt(60, 200));

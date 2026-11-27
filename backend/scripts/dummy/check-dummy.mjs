@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { seedInt, seedSetting } from './seed-settings.mjs';
+import { applyRuleSet, seedInt, seedSetting, seedVaccineRules } from './seed-settings.mjs';
 
 const DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/main/resources/db/dummy');
 
@@ -139,6 +139,13 @@ check('전화면 결과가 있음 (DB CHECK)', con.every((c) => c.method === 'SM
 // ---- 3-4 도입 전 · 후
 const conBefore = con.filter((c) => c.contacted_at < CRM).length;
 check('도입 전 연락 기록은 거의 없음 (10% 미만)', conBefore / con.length < 0.1, `${conBefore}건 / ${con.length}`);
+
+// ---- 접종 규칙 읽기 (생성 스크립트가 앱과 같은 규칙을 쓰는지, PR #226 리뷰)
+const rules = seedVaccineRules();
+check('마이그레이션 접종 규칙을 읽음 (광견병 첫 예정 112일 등)', rules.RABIES?.[0]?.from === 112 && rules.DHPPL?.length === 2,
+  Object.entries(rules).map(([c, r]) => `${c} ${r.length}행`).join(', '));
+const rejects = (set) => { try { applyRuleSet({}, set); return false; } catch { return true; } };
+check('접종 규칙 UPDATE에 모르는 칸이 있으면 멈춤', !rejects("r.age_from_days = 112, r.note = 'x'") && rejects("r.age_from_days = 1, r.phase = 'X'"));
 
 // ---- 날짜 (매뉴얼 4장 · 5장)
 const petMap = new Map(pets.map((p) => [p.pet_id, p]));
