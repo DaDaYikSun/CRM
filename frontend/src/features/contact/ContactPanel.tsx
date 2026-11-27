@@ -28,6 +28,7 @@ import {
   isSecondDayNoAnswer,
   MEMO_MAX,
   SECOND_DAY_PREV_NO_ANSWER,
+  savedToast,
   secondDayCopy,
   todayContactMessage,
   type Results,
@@ -135,7 +136,7 @@ export function ContactPanel({
     setSaving(true);
     setSaveError(null);
     try {
-      await saveContact(
+      const saved = await saveContact(
         {
           guardianId,
           method,
@@ -147,7 +148,7 @@ export function ContactPanel({
         },
         idempotencyKey,
       );
-      setToast(COPY.saved);
+      setToast(savedToast(saved.followUp));
       setIdempotencyKey(newIdempotencyKey());
       setResults({});
       setNextDate("");

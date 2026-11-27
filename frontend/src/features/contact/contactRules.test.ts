@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PanelItem } from "@/lib/api/contact";
-import { canSave, defaultNextContactDate, formatPhone, isSecondDayNoAnswer, secondDayCopy } from "./contactRules";
+import { canSave, defaultNextContactDate, formatPhone, isSecondDayNoAnswer, savedToast, secondDayCopy } from "./contactRules";
 
 const item = (scheduleId: number, noAnswerCount = 0): PanelItem => ({
   scheduleId,
@@ -45,5 +45,27 @@ describe("입력 기본값 · 저장 가능", () => {
   it("번호는 하이픈을 넣어 보인다", () => {
     expect(formatPhone("01000000000")).toBe("010-0000-0000");
     expect(formatPhone("0212345678")).toBe("02-1234-5678");
+  });
+});
+
+describe("savedToast (정책 4-2, #154)", () => {
+  it("끝낸 주기가 없으면 저장 성공 문구", () => {
+    expect(savedToast({ closedScheduleIds: [], mockSms: null })).toBe("연락 결과를 저장했습니다.");
+  });
+
+  it("2일차 · 문자 보냄이면 마침 토스트 하나만", () => {
+    expect(savedToast({ closedScheduleIds: [101], mockSms: { sent: true, template: "VACCINE" } })).toBe(
+      "문자를 보낸 것으로 기록하고 이번 주기 연락을 마쳤습니다 (모의 발송).",
+    );
+  });
+
+  it("2일차 · 수신 동의 없음이면 문자 없이 마침", () => {
+    expect(savedToast({ closedScheduleIds: [101], mockSms: null })).toBe("문자 없이 이번 주기 연락을 마쳤습니다.");
+  });
+
+  it("2일차 · 문자를 못 보냈으면 발송 실패 (2일차)", () => {
+    expect(savedToast({ closedScheduleIds: [101], mockSms: { sent: false, template: "VACCINE" } })).toBe(
+      "연락 결과는 저장했습니다. 안내 문자는 보내지 못했습니다. 필요하면 보호자에게 직접 연락해 주세요.",
+    );
   });
 });

@@ -57,9 +57,15 @@ export interface SaveContactInput {
   applyToHousehold: false; // 같은 집 일괄 적용은 초안 29
 }
 
+/** 결과별 후속 처리 (C14, #154). mockSms는 2일차로 끝낸 항목이 없거나 수신 동의가 없으면 null */
+export interface SaveContactFollowUp {
+  closedScheduleIds: number[];
+  mockSms: { sent: boolean; template: "VACCINE" | "GROOMING" } | null;
+}
+
 export interface SaveContactResult {
   contactGroupId: string;
-  followUp: unknown; // #154가 채운다
+  followUp: SaveContactFollowUp;
 }
 
 export function getContactPanel(guardianId: number): Promise<ContactPanel> {
