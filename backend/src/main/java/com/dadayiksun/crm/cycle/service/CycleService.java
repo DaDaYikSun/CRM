@@ -1,8 +1,10 @@
 package com.dadayiksun.crm.cycle.service;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -59,6 +61,28 @@ public class CycleService {
     public VisitOutcome onVisitRecorded(long visitId) {
         VisitInfo visit = source.visit(visitId)
                 .orElseThrow(() -> new IllegalStateException("방문 기록이 없다: " + visitId));
+        List<Schedule> history = schedules.findByPet(visit.petId()).stream()
+                .filter(s -> s.serviceType() == visit.serviceType() && Objects.equals(s.vaccineTypeId(), visit.vaccineTypeId()))
+                .toList();
+
+        // 같은 방문으로 다시 불리면 아무것도 하지 않는다 (uk_schedule_done_visit)
+        Optional<Schedule> already = history.stream().filter(s -> Objects.equals(s.doneVisitId(), visitId)).findFirst();
+        if (already.isPresent()) {
+            return new VisitOutcome(already.get().scheduleId(), openId(visit));
+        }
+        // 방문일이 이미 완료된 주기의 완료일 이하이면 그 주기에 속한 늦은 입력 · 같은 날 두 번 입력이다.
+        // 다음 주기는 건드리지 않고, 그 주기의 기준 안이면 저장한 판정만 지운다 (T16, DB 설계 5-1)
+        Optional<Schedule> belongsTo = history.stream()
+                .filter(s -> s.status() == Schedule.Status.DONE && !visit.visitDate().isAfter(s.doneDate()))
+                .min(Comparator.comparing(Schedule::doneDate));
+        if (belongsTo.isPresent()) {
+            Schedule s = belongsTo.get();
+            if (s.missedAt() != null && MissJudgement.isWithinThreshold(visit.visitDate(), s.dueDate(), s.missThresholdDays())) {
+                schedules.clearMissedAt(s.scheduleId());
+            }
+            return new VisitOutcome(null, openId(visit));
+        }
+
         Optional<Schedule> open = schedules.findOpen(visit.petId(), visit.serviceType(), visit.vaccineTypeId());
         Long completed = null;
         if (open.isPresent()) {
@@ -70,8 +94,12 @@ public class CycleService {
             completed = s.scheduleId();
         }
         source.petProfile(visit.petId()).filter(PetProfile::active).ifPresent(pet -> plan(pet, false));
-        Optional<Schedule> next = schedules.findOpen(visit.petId(), visit.serviceType(), visit.vaccineTypeId());
-        return new VisitOutcome(completed, next.map(Schedule::scheduleId).orElse(null));
+        return new VisitOutcome(completed, openId(visit));
+    }
+
+    private Long openId(VisitInfo visit) {
+        return schedules.findOpen(visit.petId(), visit.serviceType(), visit.vaccineTypeId())
+                .map(Schedule::scheduleId).orElse(null);
     }
 
     /** '프로필 바뀜' 뒤: 아직 오지 않은 예정일만 다시 계산 (POL-CYC-005) */

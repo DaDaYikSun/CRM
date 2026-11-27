@@ -88,6 +88,13 @@ final class CycleFakes {
         }
 
         @Override
+        public void clearMissedAt(long scheduleId) {
+            replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), s.dueDate(),
+                    s.status(), s.missThresholdDays(), s.doneVisitId(), s.doneDate(), s.gapDays(), null,
+                    s.contactState(), s.noAnswerCount(), s.nextContactDate()));
+        }
+
+        @Override
         public void updateDueDate(long scheduleId, LocalDate dueDate) {
             replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), dueDate,
                     s.status(), s.missThresholdDays(), s.doneVisitId(), s.doneDate(), s.gapDays(), s.missedAt(),

@@ -62,10 +62,25 @@ class CycleServiceTest {
         }
 
         @Test
-        void 기록_없는_성견은_규칙_그대로_지난_예정일이_된다() {
+        void 기록_없는_성견의_첫_접종_예정은_등록일이고_등록일보다_앞선_누락은_생기지_않는다() {
             source.pets.put(1L, new PetProfile(1, LocalDate.of(2020, 1, 1), true, 70, TODAY));
             service.createInitialSchedules(1);
-            assertThat(open(1, ServiceType.VACCINE, RABIES).dueDate()).isEqualTo(LocalDate.of(2020, 3, 31));
+            assertThat(open(1, ServiceType.VACCINE, RABIES).dueDate()).isEqualTo(TODAY);
+
+            // 등록 다음 날 판정해도 누락 없음, 기준을 넘기면 그때 누락이고 판정일은 등록일 뒤
+            new MissJudgementJob(schedules, CycleFakes.clockAt(TODAY.plusDays(1))).run();
+            assertThat(schedules.rows).allMatch(s -> s.missedAt() == null);
+            new MissJudgementJob(schedules, CycleFakes.clockAt(TODAY.plusDays(16))).run();
+            assertThat(schedules.rows).filteredOn(s -> s.missedAt() != null)
+                    .isNotEmpty().allMatch(s -> !s.missedAt().isBefore(TODAY));
+        }
+
+        @Test
+        void 기록이_있으면_등록일과_상관없이_규칙대로() {
+            source.pets.put(1L, new PetProfile(1, LocalDate.of(2020, 1, 1), true, 70, TODAY));
+            source.visits.add(new VisitInfo(9, 1, ServiceType.VACCINE, RABIES, LocalDate.of(2020, 4, 1)));
+            service.createInitialSchedules(1);
+            assertThat(open(1, ServiceType.VACCINE, RABIES).dueDate()).isEqualTo(LocalDate.of(2021, 4, 1));
         }
 
         @Test
@@ -158,6 +173,40 @@ class CycleServiceTest {
         }
 
         @Test
+        void 같은_방문으로_다시_불려도_아무것도_바뀌지_않는다() {
+            openWith(LocalDate.of(2026, 11, 1), null);
+            CycleService.VisitOutcome first = visit(10, LocalDate.of(2026, 11, 10));
+            int rows = schedules.rows.size();
+            CycleService.VisitOutcome again = service.onVisitRecorded(10);
+            assertThat(schedules.rows).hasSize(rows);
+            assertThat(again).isEqualTo(first);
+        }
+
+        @Test
+        void 같은_날_같은_종류를_두_번_입력하면_다음_주기를_닫지_않는다() {
+            openWith(LocalDate.of(2026, 11, 1), null);
+            visit(10, LocalDate.of(2026, 11, 10));
+            long next = open(1, ServiceType.VACCINE, RABIES).scheduleId();
+            CycleService.VisitOutcome dup = visit(11, LocalDate.of(2026, 11, 10));
+            assertThat(dup.completedScheduleId()).isNull();
+            assertThat(schedules.findById(next).orElseThrow().status()).isEqualTo(Schedule.Status.OPEN);
+        }
+
+        @Test
+        void 완료된_주기에_속하는_늦은_기준_안_방문은_그_주기의_판정만_지운다() {
+            // 11-01 예정을 11-20(기준 밖)으로 완료 → 판정 11-16, 다음 주기 열림
+            openWith(LocalDate.of(2026, 11, 1), null);
+            visit(10, LocalDate.of(2026, 11, 20));
+            long next = open(1, ServiceType.VACCINE, RABIES).scheduleId();
+            // 나중에 11-10(기준 안) 방문을 입력
+            CycleService.VisitOutcome late = visit(11, LocalDate.of(2026, 11, 10));
+
+            assertThat(schedules.findById(1).orElseThrow().missedAt()).isNull();
+            assertThat(late.completedScheduleId()).isNull();
+            assertThat(schedules.findById(next).orElseThrow().status()).isEqualTo(Schedule.Status.OPEN);
+        }
+
+        @Test
         void 없는_방문이면_멈춘다() {
             assertThatThrownBy(() -> service.onVisitRecorded(999)).isInstanceOf(IllegalStateException.class);
         }
@@ -204,6 +253,24 @@ class CycleServiceTest {
             service.recalculatePet(1);
             assertThat(schedules.findById(1).orElseThrow().status()).isEqualTo(Schedule.Status.VOID);
             assertThat(schedules.findById(2).orElseThrow().status()).isEqualTo(Schedule.Status.OPEN);
+        }
+
+        @Test
+        void 규칙_저장_뒤에는_쓰는_아이_모두_다시_계산한다() {
+            source.pets.put(2L, new PetProfile(2, LocalDate.of(2026, 10, 1), true, 70, TODAY));
+            source.pets.put(3L, new PetProfile(3, LocalDate.of(2026, 10, 1), false, 70, TODAY));
+            service.recalculateByRule();
+            assertThat(schedules.findOpenByPet(1)).hasSize(2);
+            assertThat(schedules.findOpenByPet(2)).hasSize(2);
+            assertThat(schedules.findOpenByPet(3)).isEmpty();
+        }
+
+        @Test
+        void 프로필_바뀜_이벤트를_들으면_다시_계산한다() {
+            schedules.put(new Schedule(1, 1, ServiceType.VACCINE, RABIES, LocalDate.of(2027, 1, 1), Schedule.Status.OPEN,
+                    14, null, null, null, null, "NONE", 0, null));
+            new CycleEventListener(service).onPetProfileChanged(new com.dadayiksun.crm.customer.domain.PetProfileChangedEvent(1L));
+            assertThat(schedules.findById(1).orElseThrow().dueDate()).isEqualTo(LocalDate.of(2026, 12, 30));
         }
 
         @Test

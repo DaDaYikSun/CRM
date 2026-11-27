@@ -28,6 +28,9 @@ public interface ScheduleRepository {
 
     void complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt);
 
+    /** 늦게 입력한 기준 안 방문으로 저장한 판정을 지운다 (T16) */
+    void clearMissedAt(long scheduleId);
+
     void updateDueDate(long scheduleId, LocalDate dueDate);
 
     void voidSchedule(long scheduleId);

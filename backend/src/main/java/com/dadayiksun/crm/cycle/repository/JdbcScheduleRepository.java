@@ -87,6 +87,11 @@ public class JdbcScheduleRepository implements ScheduleRepository {
     }
 
     @Override
+    public void clearMissedAt(long scheduleId) {
+        jdbc.update("UPDATE schedule SET missed_at = NULL WHERE schedule_id = ?", scheduleId);
+    }
+
+    @Override
     public void updateDueDate(long scheduleId, LocalDate dueDate) {
         jdbc.update("UPDATE schedule SET due_date = ? WHERE schedule_id = ? AND status = 'OPEN'",
                 Date.valueOf(dueDate), scheduleId);
@@ -99,11 +104,12 @@ public class JdbcScheduleRepository implements ScheduleRepository {
 
     @Override
     public int markMissed(LocalDate today) {
+        // 무지개다리 아이의 지난 OPEN 주기는 판정하지 않는다 (재방문 대상이 아님, POL-END-002 · 누락률에서 빠짐)
         return jdbc.update("""
-                UPDATE schedule
-                   SET missed_at = DATE_ADD(due_date, INTERVAL miss_threshold_days + 1 DAY)
-                 WHERE status = 'OPEN' AND missed_at IS NULL
-                   AND DATE_ADD(due_date, INTERVAL miss_threshold_days DAY) < ?
+                UPDATE schedule s JOIN pet p ON p.pet_id = s.pet_id
+                   SET s.missed_at = DATE_ADD(s.due_date, INTERVAL s.miss_threshold_days + 1 DAY)
+                 WHERE s.status = 'OPEN' AND s.missed_at IS NULL AND p.status = 'ACTIVE'
+                   AND DATE_ADD(s.due_date, INTERVAL s.miss_threshold_days DAY) < ?
                 """, Date.valueOf(today));
     }
 
