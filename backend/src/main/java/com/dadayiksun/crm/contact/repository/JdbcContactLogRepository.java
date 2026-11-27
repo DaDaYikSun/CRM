@@ -28,6 +28,12 @@ public class JdbcContactLogRepository implements ContactLogRepository {
     }
 
     @Override
+    public void markConverted(long contactLogId, long visitId) {
+        jdbc.update("UPDATE contact_log SET is_converted = 1, converted_visit_id = ? WHERE contact_log_id = ?",
+                visitId, contactLogId);
+    }
+
+    @Override
     public void insertMockSms(MockSmsRow r) {
         jdbc.update("""
                 INSERT INTO contact_log (contact_group_id, guardian_id, pet_id, schedule_id, method, is_mock_sms,

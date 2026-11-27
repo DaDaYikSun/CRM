@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import com.dadayiksun.crm.contact.domain.ConversionRule;
 import com.dadayiksun.crm.contact.dto.ContactPanelResponse;
 
 /** {@link ContactQuery}의 MySQL 조회. 날짜는 백엔드가 한국 시간으로 정해 넘기고 {@code CURDATE()}는 쓰지 않는다 (DB 설계 1장). */
@@ -158,6 +159,24 @@ public class JdbcContactQuery implements ContactQuery {
                 rs.getString("service_type"), rs.getString("vaccine_type_name"),
                 rs.getDate("due_date").toLocalDate(), rs.getTimestamp("contacted_at").toLocalDateTime(),
                 rs.getLong("created_by")));
+    }
+
+    @Override
+    public Optional<CompletedSchedule> completedBy(long visitId) {
+        return jdbc.query("""
+                SELECT s.schedule_id, s.due_date, s.miss_threshold_days, v.visit_date
+                  FROM schedule s JOIN visit v ON v.visit_id = s.done_visit_id
+                 WHERE s.done_visit_id = :visitId
+                """, Map.of("visitId", visitId), (rs, i) -> new CompletedSchedule(rs.getLong("schedule_id"),
+                rs.getDate("due_date").toLocalDate(), rs.getInt("miss_threshold_days"),
+                rs.getDate("visit_date").toLocalDate())).stream().findFirst();
+    }
+
+    @Override
+    public List<ConversionRule.Contact> contactsOf(long scheduleId) {
+        return jdbc.query("SELECT contact_log_id, contacted_at FROM contact_log WHERE schedule_id = :id",
+                Map.of("id", scheduleId), (rs, i) -> new ConversionRule.Contact(rs.getLong("contact_log_id"),
+                        rs.getTimestamp("contacted_at").toLocalDateTime()));
     }
 
     @Override

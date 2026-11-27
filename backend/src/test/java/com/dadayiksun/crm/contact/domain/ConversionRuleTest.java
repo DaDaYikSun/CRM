@@ -36,6 +36,15 @@ class ConversionRuleTest {
     }
 
     @Test
+    void 같은_시각이면_나중에_저장한_2일차_문자_행이_전환이다() {
+        // 2일차: 전화 안 받음 행(10)과 같은 시각에 모의 발송 문자 행(11)을 남긴다 → 마지막 안내인 문자가 전환 (PR #232에서 정함)
+        LocalDateTime at = LocalDateTime.of(2026, 11, 21, 10, 0);
+        List<ConversionRule.Contact> contacts = List.of(new ConversionRule.Contact(10, at), new ConversionRule.Contact(11, at));
+
+        assertThat(ConversionRule.convertedContact(contacts, DUE, 14, LocalDate.of(2026, 11, 25))).contains(11L);
+    }
+
+    @Test
     void 연락이_없으면_전환_없음() {
         assertThat(ConversionRule.convertedContact(List.of(), DUE, 14, LocalDate.of(2026, 11, 25))).isEmpty();
     }

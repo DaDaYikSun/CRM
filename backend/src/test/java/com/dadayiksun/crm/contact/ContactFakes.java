@@ -69,6 +69,20 @@ public final class ContactFakes {
         public final List<GroupItem> groupItems = new ArrayList<>();
         public final java.util.Map<String, String> templates = new java.util.HashMap<>();
 
+        public final java.util.Map<Long, CompletedSchedule> completed = new java.util.HashMap<>();
+        public final java.util.Map<Long, List<com.dadayiksun.crm.contact.domain.ConversionRule.Contact>> contacts =
+                new java.util.HashMap<>();
+
+        @Override
+        public Optional<CompletedSchedule> completedBy(long visitId) {
+            return Optional.ofNullable(completed.get(visitId));
+        }
+
+        @Override
+        public List<com.dadayiksun.crm.contact.domain.ConversionRule.Contact> contactsOf(long scheduleId) {
+            return contacts.getOrDefault(scheduleId, List.of());
+        }
+
         @Override
         public List<GroupItem> groupItems(String contactGroupId) {
             return groupItems;
@@ -94,6 +108,13 @@ public final class ContactFakes {
         }
 
         public final List<MockSmsRow> mockSms = new ArrayList<>();
+        /** {contactLogId, visitId} */
+        public final List<long[]> converted = new ArrayList<>();
+
+        @Override
+        public void markConverted(long contactLogId, long visitId) {
+            converted.add(new long[] {contactLogId, visitId});
+        }
 
         @Override
         public void insertMockSms(MockSmsRow row) {
