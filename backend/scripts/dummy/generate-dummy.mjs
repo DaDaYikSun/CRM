@@ -511,7 +511,13 @@ function outcome(p, service, code, due, missBase) {
 function simulate(p, service, code, history, opts = {}) {
   const dates = [...history];
   const nextDue = () => (service === 'GROOMING' ? nextGroomDue(p, dates) : nextVaccineDue(p, code, dates));
-  const record = (d) => { if (service === 'VACCINE') addVaccination(p, code, d); else addGrooming(p, d); dates.push(d); };
+  const record = (d) => {
+    if (service === 'VACCINE') addVaccination(p, code, d); else addGrooming(p, d);
+    dates.push(d);
+    // 그 주기의 방문 시각 (적재기는 방문일 + 입력 시각으로 줄을 세운다, DummyTimeline.visit)
+    const last = cycles[cycles.length - 1];
+    if (last && last.p === p && last.visit === d) last.visitAt = `${d} ${(service === 'VACCINE' ? vaccinations : groomings).at(-1).created_at.slice(11)}`;
+  };
   let due = nextDue();
   let visits = 0;
   let guard = 0;
@@ -622,6 +628,7 @@ for (const p of pets) {
 // 같은 집 다른 아이도 함께 묶는다. 묶음 행은 같은 contact_group_id · 보호자 · 연락 시각 · 방법 · 결과를 쓴다.
 // 묶는 아이는 그 연락 뒤 기준(MISS_THRESHOLD_DAYS) 안에 이미 미용을 받은 아이만 고른다 (방문을 새로 만들지 않아 주기 계산이 그대로).
 const GROUP_CONTACT_SHARE = 0.6;
+const siblingContacts = []; // 묶음으로 더한 아이 행 (기대 전환율 계산용)
 for (const o of owners.filter((x) => multiOwners.has(x.guardian_id) && canContact(x))) {
   const kids = pets.filter((p) => p.guardian_id === o.guardian_id);
   const booked = contacts.filter((c) => c.guardian_id === o.guardian_id && c.service_type === 'GROOMING' && c.method === 'PHONE'
@@ -633,6 +640,7 @@ for (const o of owners.filter((x) => multiOwners.has(x.guardian_id) && canContac
     && groomings.some((g) => g.pet_id === k.pet_id && before(day, g.visit_date) && !before(addDays(day, MISS_THRESHOLD_DAYS), g.visit_date))
     && !contacts.some((x) => x.contact_group_id === c.contact_group_id && x.pet_id === k.pet_id));
   if (!b) continue;
+  siblingContacts.push(contacts.length);
   contacts.push({ ...c, pet_id: b.pet_id });
 }
 
@@ -659,15 +667,50 @@ for (const service of ['VACCINE', 'GROOMING']) {
   const post = expectedMissRate(service, CRM_START, END);
   console.log(`기대 누락률 ${service}: 도입 전 ${pre.rate}% (${pre.m}/${pre.n}), 도입 뒤 ${post.rate}% (${post.m}/${post.n})`);
 }
-// 기대 전환율 (#154 ConversionRule: 기준 안 방문이면 방문일 이하 마지막 연락이 전환). 도입 뒤 연락만, 결과별
+// 기대 전환율 (#154 ConversionRule: 기준 안 방문이면 방문 시각 전 마지막 연락이 전환). 도입 뒤 연락만, 결과별.
+// 적재기와 같은 기준으로 연락을 주기에 붙인다: 등록일 전 연락은 넣지 않고, 연락한 시각에 열려 있던 주기(그 시각 뒤에 방문한 첫 주기)에 붙인다.
+// 2일차 전화도 안 받으면 후속 처리(C14)가 같은 시각에 모의 발송 문자 행을 더하므로 그 행도 넣는다 (PR #238 리뷰)
 {
-  const stat = {};
+  const regOf = new Map(pets.map((p) => [p.pet_id, p._reg]));
+  const streams = new Map();
+  const openAfterEnd = [];
   for (const c of cycles) {
-    const rows = (c.contacts ?? []).map((i) => contacts[i]);
+    const k = `${c.p.pet_id}|${c.service}|${c.code}`;
+    if (!streams.has(k)) streams.set(k, []);
+    streams.get(k).push(c);
+    c.rows = [];
+  }
+  const place = (list, from, x) => {
+    let i = from;
+    while (i < list.length && list[i].visitAt && x.contacted_at >= list[i].visitAt) i++;
+    if (i < list.length) list[i].rows.push(x);
+    else openAfterEnd.push(x); // 데이터 끝 뒤 예정의 열린 주기에 붙는다 (방문 없음, 전환 아님)
+  };
+  const inData = (x) => !before(x.contacted_at.slice(0, 10), regOf.get(x.pet_id));
+  for (const list of streams.values()) {
+    list.forEach((c, i) => (c.contacts ?? []).forEach((idx) => { if (inData(contacts[idx])) place(list, i, contacts[idx]); }));
+  }
+  for (const idx of siblingContacts) { // 같은 집 묶음 연락으로 더한 아이 행
+    const x = contacts[idx];
+    const list = streams.get(`${x.pet_id}|GROOMING|null`);
+    if (list && inData(x)) place(list, 0, x);
+  }
+  const stat = {};
+  const out = [];
+  for (const c of [...cycles, { rows: openAfterEnd, visit: null, visitAt: null, due: END }]) {
+    const rows = [];
+    for (const x of c.rows.sort((a, b) => (a.contacted_at < b.contacted_at ? -1 : a.contacted_at > b.contacted_at ? 1 : 0))) {
+      rows.push(x);
+      const day1 = c.rows.some((y) => y !== x && y.method === 'PHONE' && y.result === 'NO_ANSWER' && y.contacted_at < x.contacted_at);
+      if (x.memo === '2일차' && x.method === 'PHONE' && x.result === 'NO_ANSWER' && day1 && owners[x.guardian_id - 1].sms_agreed) {
+        rows.push({ ...x, method: 'SMS', result: '', memo: '(후속 처리 모의 발송)' });
+      }
+    }
     const within = c.visit && !before(addDays(c.due, MISS_THRESHOLD_DAYS), c.visit);
-    const cand = within ? rows.filter((x) => !before(c.visit, x.contacted_at.slice(0, 10))) : [];
-    const conv = cand.length ? cand.reduce((a, b) => (a.contacted_at > b.contacted_at ? a : b)) : null;
+    // 같은 시각이면 나중에 넣은 행 (ConversionRule: 연락 시각 → contact_log_id 순)
+    const conv = within && rows.length ? rows.reduce((a, b) => (a.contacted_at > b.contacted_at ? a : b)) : null;
     for (const x of rows) {
+      if (process.env.DUMMY_CONV_OUT) out.push(`${x.contact_group_id}|${x.method}|${x.result}|${x.pet_id}|${x === conv ? 1 : 0}`);
       if (before(x.contacted_at.slice(0, 10), CRM_START)) continue;
       const k = (x.result || '(문자만)') + ' ' + x.method;
       stat[k] ??= [0, 0];
@@ -675,6 +718,8 @@ for (const service of ['VACCINE', 'GROOMING']) {
       if (x === conv) stat[k][1]++;
     }
   }
+  // DUMMY_CONV_OUT=파일 이면 연락 행마다 기대 전환(묶음|방법|결과|아이|0·1)을 써서 적재 뒤 DB와 행 단위로 대조할 수 있다
+  if (process.env.DUMMY_CONV_OUT) writeFileSync(process.env.DUMMY_CONV_OUT, out.join(String.fromCharCode(10)));
   console.log('기대 전환율 (도입 뒤): ' + Object.entries(stat).sort().map(([k, [n, m]]) => `${k} ${Math.round((1000 * m) / n) / 10}% (${m}/${n})`).join(', '));
 }
 // 미용을 다니는 아이만 (미용 안 오는 아이 · 0~1회 아이의 첫 미용 예정 누락을 뺀 값, 참고용)
