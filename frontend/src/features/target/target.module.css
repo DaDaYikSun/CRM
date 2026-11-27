@@ -1,0 +1,136 @@
+.guide {
+  color: var(--text-secondary);
+  margin: var(--spacing-4) 0 var(--spacing-16);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--spacing-16);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--spacing-12);
+}
+
+.tab {
+  padding: var(--spacing-8) var(--spacing-4);
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.tab[aria-current="page"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--action-primary);
+  font-weight: 600;
+}
+
+.sortNote {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: var(--spacing-8);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+  padding: var(--spacing-12) var(--spacing-16);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--bg-subtle);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.selected {
+  border-left-color: var(--action-primary);
+  background: var(--bg-selected);
+}
+
+.guardian {
+  display: flex;
+  flex-direction: column;
+  min-width: 96px;
+}
+
+.phone {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.pets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.pet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.petName {
+  font-weight: 600;
+  min-width: 56px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-8);
+  border: 1px solid var(--border-control);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.due {
+  color: var(--text-muted);
+}
+
+.more {
+  border: 1px solid var(--border-control);
+  background: var(--bg-surface);
+  border-radius: 6px;
+  padding: var(--spacing-2) var(--spacing-8);
+  cursor: pointer;
+}
+
+.empty,
+.error {
+  padding: var(--spacing-16);
+  color: var(--text-secondary);
+}
+
+.error {
+  color: var(--status-danger-text);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  margin-top: var(--spacing-16);
+  color: var(--text-secondary);
+}
