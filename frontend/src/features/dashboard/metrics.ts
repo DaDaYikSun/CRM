@@ -19,9 +19,23 @@ export function percent(rate: number): string {
   return `${Math.round(rate * 1000) / 10}%`;
 }
 
-function ratioCard(label: string, r: Ratio, unit: string): MetricCard {
+/** 표시 자릿수(소수 첫째)로 반올림한 % 숫자 */
+function pct1(count: number, total: number): number {
+  return Math.round((count / total) * 1000) / 10;
+}
+
+/**
+ * 재방문율과 누락률은 같은 대상의 나머지라 합이 100%로 보여야 한다 (POL-MISS-003 · 004).
+ * 누락률을 표시 자릿수로 반올림하고 재방문율은 100에서 뺀다 (따로 반올림하면 98.8% + 1.3% = 100.1%, PR #241 리뷰).
+ */
+export function complementPercents(missed: number, total: number): { revisit: string; miss: string } {
+  const miss = pct1(missed, total);
+  return { revisit: `${Math.round((100 - miss) * 10) / 10}%`, miss: `${miss}%` };
+}
+
+function card(label: string, r: Ratio, value: string, unit: string): MetricCard {
   if (r.rate === null) return { label, value: null, detail: null };
-  return { label, value: percent(r.rate), detail: `${r.numerator}${unit} / ${r.denominator}${unit}` };
+  return { label, value, detail: `${r.numerator}${unit} / ${r.denominator}${unit}` };
 }
 
 /** 6.4 → "+6.4일", -1.2 → "-1.2일", 0 → "0일" */
@@ -35,10 +49,14 @@ export function revisitCards(m: Metrics): MetricCard[] {
   const gap = [vaccine !== null ? `접종 ${gapText(vaccine)}` : null, grooming !== null ? `미용 ${gapText(grooming)}` : null]
     .filter(Boolean)
     .join(" · ");
+  const v = m.vaccineMissRate;
+  const vaccinePct = v.denominator ? complementPercents(v.numerator, v.denominator) : null;
+  const g = m.revisitRate.grooming;
+  const groomingPct = g.denominator ? complementPercents(g.denominator - g.numerator, g.denominator) : null;
   return [
-    ratioCard("접종 재방문율 (주요 접종)", m.revisitRate.vaccine, "마리"),
-    ratioCard("미용 재방문율", m.revisitRate.grooming, "마리"),
-    ratioCard("접종 누락률 (주요 접종)", m.vaccineMissRate, "마리"),
+    card("접종 재방문율 (주요 접종)", m.revisitRate.vaccine, vaccinePct?.revisit ?? "", "마리"),
+    card("미용 재방문율", g, groomingPct?.revisit ?? "", "마리"),
+    card("접종 누락률 (주요 접종)", v, vaccinePct?.miss ?? "", "마리"),
     { label: "예정일 대비 실제 방문 차이", value: gap || null, detail: gap ? "평균, + 는 예정일보다 늦게 옴" : null },
   ];
 }

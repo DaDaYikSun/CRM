@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Metrics } from "@/lib/api/dashboard";
-import { gapText, hasContacts, methodRows, percent, resultRows, revisitCards } from "./metrics";
+import { complementPercents, gapText, hasContacts, methodRows, percent, resultRows, revisitCards } from "./metrics";
 
 const zero = { rate: null, converted: 0, total: 0 };
 function metrics(over: Partial<Metrics> = {}): Metrics {
@@ -37,6 +37,20 @@ describe("재방문 지표 (SCR-S02-02 ②)", () => {
     expect(cards[0]).toMatchObject({ value: "62%", detail: "31마리 / 50마리" });
     expect(cards[1]).toMatchObject({ value: null });
     expect(cards[3].value).toBe("접종 +6.4일");
+  });
+
+  it("재방문율 + 누락률은 화면에서도 100% (따로 반올림하지 않는다)", () => {
+    // 80마리 중 누락 1: 따로 반올림하면 98.8% + 1.3% = 100.1% (PR #241 리뷰)
+    expect(complementPercents(1, 80)).toEqual({ revisit: "98.7%", miss: "1.3%" });
+    expect(complementPercents(19, 50)).toEqual({ revisit: "62%", miss: "38%" });
+    const cards = revisitCards(
+      metrics({
+        revisitRate: { vaccine: { rate: 0.9875, numerator: 79, denominator: 80 }, grooming: { rate: 0.9688, numerator: 31, denominator: 32 } },
+        vaccineMissRate: { rate: 0.0125, numerator: 1, denominator: 80 },
+      }),
+    );
+    expect([cards[0].value, cards[2].value]).toEqual(["98.7%", "1.3%"]);
+    expect(cards[1].value).toBe("96.9%"); // 누락 1/32 = 3.1% → 100 − 3.1
   });
 
   it("방문 차이는 서비스별, 둘 다 없으면 빈 상태", () => {

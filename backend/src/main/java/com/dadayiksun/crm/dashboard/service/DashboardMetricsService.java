@@ -46,18 +46,16 @@ public class DashboardMetricsService {
                 new DashboardMetricsQuery.RevisitCount("VACCINE", 0, 0));
         DashboardMetricsQuery.RevisitCount grooming = revisit.getOrDefault("GROOMING",
                 new DashboardMetricsQuery.RevisitCount("GROOMING", 0, 0));
+        // 재방문 아이 = 대상 아이 − 누락 아이, 재방문율 = 1 − 누락률 (합이 늘 100%, POL-MISS-003)
 
+        MetricsResponse.Ratio vaccineMiss = MetricsResponse.Ratio.of(vaccine.missedPets(), vaccine.pets());
+        MetricsResponse.Ratio groomingMiss = MetricsResponse.Ratio.of(grooming.missedPets(), grooming.pets());
         return new MetricsResponse(period.from(), period.to(),
-                new MetricsResponse.Revisit(revisitRatio(vaccine), revisitRatio(grooming)),
-                MetricsResponse.Ratio.of(vaccine.missedPets(), vaccine.pets()),
+                new MetricsResponse.Revisit(vaccineMiss.complement(), groomingMiss.complement()),
+                vaccineMiss,
                 new MetricsResponse.GapDays(avg(gap.get("VACCINE")), avg(gap.get("GROOMING"))),
                 conversions(RESULTS, query.conversionByResult(period.from(), period.to())),
                 conversions(METHODS, query.conversionByMethod(period.from(), period.to())));
-    }
-
-    /** 재방문 아이 = 대상 아이 − 누락 아이. 재방문율 + 누락률 = 100% (POL-MISS-003) */
-    private static MetricsResponse.Ratio revisitRatio(DashboardMetricsQuery.RevisitCount c) {
-        return MetricsResponse.Ratio.of(c.pets() - c.missedPets(), c.pets());
     }
 
     /** 소수 첫째 자리까지 */

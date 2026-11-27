@@ -23,6 +23,15 @@ public record MetricsResponse(
         public static Ratio of(long numerator, long denominator) {
             return new Ratio(ratio(numerator, denominator), numerator, denominator);
         }
+
+        /**
+         * 같은 대상의 나머지 비율 (재방문율 = 1 − 누락률, POL-MISS-003). 따로 반올림하면 합이 1이 아닐 수 있어서
+         * 반올림한 상대 비율에서 뺀다 (PR #241 리뷰). 분모가 0이면 null
+         */
+        public Ratio complement() {
+            long n = denominator - numerator;
+            return new Ratio(rate == null ? null : Math.round((1 - rate) * 10000.0) / 10000.0, n, denominator);
+        }
     }
 
     /** 예정일 대비 실제 방문 차이(일)의 평균. 서비스별로 나눈다 (#157 결정). 완료 주기가 없으면 null */

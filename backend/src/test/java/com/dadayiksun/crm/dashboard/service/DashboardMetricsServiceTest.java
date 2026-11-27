@@ -63,7 +63,20 @@ class DashboardMetricsServiceTest {
         assertThat(m.revisitRate().vaccine()).isEqualTo(new MetricsResponse.Ratio(0.62, 31, 50));
         assertThat(m.vaccineMissRate()).isEqualTo(new MetricsResponse.Ratio(0.38, 19, 50));
         assertThat(m.revisitRate().vaccine().rate() + m.vaccineMissRate().rate()).isEqualTo(1.0);
-        assertThat(m.revisitRate().grooming()).isEqualTo(new MetricsResponse.Ratio(0.7097, 22, 31));
+        assertThat(m.revisitRate().grooming()).isEqualTo(new MetricsResponse.Ratio(0.7097, 22, 31)); // 1 − 0.2903
+    }
+
+    @Test
+    void 따로_반올림하면_100퍼센트가_안_되는_경우도_합이_정확히_1() {
+        // 32마리 중 누락 1: 따로 반올림하면 0.9688 + 0.0313 = 1.0001 (PR #241 리뷰)
+        query.revisit.add(new DashboardMetricsQuery.RevisitCount("VACCINE", 32, 1));
+
+        MetricsResponse m = service.metrics(null, null);
+
+        assertThat(m.vaccineMissRate()).isEqualTo(new MetricsResponse.Ratio(0.0313, 1, 32));
+        assertThat(m.revisitRate().vaccine()).isEqualTo(new MetricsResponse.Ratio(0.9687, 31, 32));
+        assertThat(java.math.BigDecimal.valueOf(m.revisitRate().vaccine().rate()).add(java.math.BigDecimal.valueOf(m.vaccineMissRate().rate())))
+                .isEqualByComparingTo("1");
     }
 
     @Test
