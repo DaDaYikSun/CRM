@@ -108,7 +108,7 @@ public class ContactSaveService {
 
         String groupId = UUID.randomUUID().toString();
         LocalDateTime now = clock.now();
-        LocalDate tomorrow = clock.today().plusDays(1);
+        LocalDate tomorrow = now.toLocalDate().plusDays(1); // now와 같은 시각 기준 (자정 경계)
         for (int i = 0; i < items.size(); i++) {
             ContactQuery.OpenSchedule s = open.get(items.get(i).scheduleId());
             ContactResult result = results.get(i);

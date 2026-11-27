@@ -61,6 +61,7 @@ export function ContactPanel({
   const [panel, setPanel] = useState<Panel | null>(null);
   const [history, setHistory] = useState<PageData<ContactHistoryItem> | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
+  const [historyError, setHistoryError] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
 
@@ -76,19 +77,7 @@ export function ContactPanel({
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const dialog = useRef<HTMLDialogElement>(null);
 
-  // 보호자가 바뀌면 입력을 비운다
-  useEffect(() => {
-    setResults({});
-    setMethod("PHONE");
-    setTalkedWith("SELF");
-    setNextDate("");
-    setNextDateTouched(false);
-    setMemo("");
-    setSaveError(null);
-    setHistoryPage(1);
-    setIdempotencyKey(newIdempotencyKey());
-  }, [guardianId]);
-
+  // 보호자가 바뀌면 부르는 쪽이 key={guardianId}로 새로 만든다 (targets/page.tsx). 그래서 입력을 따로 비우지 않는다.
   useEffect(() => {
     let stale = false;
     setLoadError(null);
@@ -106,9 +95,14 @@ export function ContactPanel({
 
   useEffect(() => {
     let stale = false;
+    setHistoryError(false);
     getContactHistory(guardianId, historyPage)
       .then((h) => !stale && setHistory(h))
-      .catch(() => !stale && setHistory(null));
+      .catch(() => {
+        if (stale) return;
+        setHistory(null);
+        setHistoryError(true);
+      });
     return () => {
       stale = true;
     };
@@ -306,6 +300,18 @@ export function ContactPanel({
 
           <section className={styles.history} aria-label="지난 연락">
             <h3>지난 연락</h3>
+            {historyError && (
+              <Notice
+                tone="danger"
+                actions={
+                  <Button variant="ghost" size="sm" onClick={() => setReload((n) => n + 1)}>
+                    다시 시도
+                  </Button>
+                }
+              >
+                {LOAD_FAILED_MESSAGE}
+              </Notice>
+            )}
             {history && history.total === 0 && <p className={styles.hint}>{COPY.emptyHistory}</p>}
             {history && history.items.length > 0 && (
               <ul>

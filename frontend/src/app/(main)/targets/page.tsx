@@ -129,7 +129,8 @@ function Targets() {
   return (
     <div className={contactStyles.split}>
       {list}
-      <ContactPanel guardianId={selected} onSaved={() => setReload((n) => n + 1)} onClose={() => setSelected(null)} />
+      {/* key: 보호자가 바뀌면 패널을 새로 만들어 이전 보호자의 정보 · 입력 · 늦게 끝난 저장이 섞이지 않게 한다 */}
+      <ContactPanel key={selected} guardianId={selected} onSaved={() => setReload((n) => n + 1)} onClose={() => setSelected(null)} />
     </div>
   );
 }
