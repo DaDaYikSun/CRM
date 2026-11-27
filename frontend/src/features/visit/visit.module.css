@@ -1,0 +1,43 @@
+.dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: var(--spacing-20);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-12);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-18);
+}
+
+.memo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.memo textarea {
+  font: inherit;
+  padding: var(--spacing-8);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-6);
+  resize: vertical;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--font-size-13);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-8);
+}
