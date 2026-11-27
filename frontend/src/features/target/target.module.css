@@ -44,16 +44,32 @@
   border: 1px solid var(--border-default);
   border-left: 3px solid transparent;
   border-radius: 8px;
-  cursor: pointer;
 }
 
 .row:hover {
   background: var(--bg-subtle);
 }
 
-.row:focus-visible {
+/* 줄 선택 버튼: 버튼 기본 모양을 지우고 보호자 · 아이 칸을 그대로 늘어놓는다 */
+.rowMain {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-16);
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowMain:focus-visible {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: 4px;
 }
 
 .selected {
