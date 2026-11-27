@@ -1,0 +1,53 @@
+/* Notice · Toast 모양 (컴포넌트 설계 3-2, TKN-S05, #145에서 추가) */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-10);
+  padding: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-10);
+  font-size: var(--font-size-14);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.danger {
+  background: var(--status-danger-bg);
+  color: var(--status-danger-text);
+}
+
+.warning {
+  background: var(--status-warning-bg);
+  color: var(--status-warning-text);
+}
+
+.info {
+  background: var(--status-info-bg);
+  color: var(--status-info-text);
+}
+
+.success {
+  background: var(--status-success-bg);
+  color: var(--status-success-text);
+}
+
+.toast {
+  position: fixed;
+  right: var(--spacing-24);
+  bottom: var(--spacing-24);
+  z-index: 100;
+  padding: var(--spacing-12) var(--spacing-20);
+  border-radius: var(--radius-10);
+  box-shadow: var(--shadow-card);
+  font-size: var(--font-size-14);
+  font-weight: var(--font-medium);
+}
