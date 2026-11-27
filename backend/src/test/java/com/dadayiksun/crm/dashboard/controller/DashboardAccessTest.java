@@ -61,7 +61,7 @@ class DashboardAccessTest {
             mvc.perform(get("/api/dashboard/metrics").session(AuthTestSupport.session(role)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.from").value("2026-11-01"))
-                    .andExpect(jsonPath("$.data.to").value("2026-11-30"))
+                    .andExpect(jsonPath("$.data.to").value("2026-11-27"))
                     .andExpect(jsonPath("$.data.revisitRate.vaccine.rate").doesNotExist())
                     .andExpect(jsonPath("$.data.revisitRate.vaccine.denominator").value(0))
                     .andExpect(jsonPath("$.data.conversionByResult.WRONG_NUMBER.total").value(0));

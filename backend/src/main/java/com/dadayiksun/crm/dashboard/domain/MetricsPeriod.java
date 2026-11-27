@@ -12,6 +12,7 @@ import com.dadayiksun.crm.common.response.ErrorResponse;
 /**
  * 지표 기간 (양 끝 포함, 한국 날짜). 둘 다 없으면 이번 달 (화면 설계 SCR-S02-03 '처음: 기간 이번 달', API 설계 3-8).
  * 하나만 오면 빠진 쪽을 같은 달의 처음 · 끝으로 채운다. 형식이 틀리거나 from > to면 400 VALIDATION_FAILED.
+ * 오늘(한국 날짜)보다 뒤는 세지 않는다: to가 오늘 뒤면 오늘로 자르고, from이 오늘 뒤면 400 (#176 결정, 이번 달 기본값도 오늘까지).
  */
 public record MetricsPeriod(LocalDate from, LocalDate to) {
 
@@ -29,6 +30,12 @@ public record MetricsPeriod(LocalDate from, LocalDate to) {
             from = to.withDayOfMonth(1);
         } else if (to == null) {
             to = from.withDayOfMonth(from.lengthOfMonth());
+        }
+        if (from.isAfter(today)) {
+            throw invalid(List.of(new ErrorResponse.FieldError("from", ErrorCode.VALIDATION_FALLBACK_MESSAGE)));
+        }
+        if (to.isAfter(today)) {
+            to = today;
         }
         if (from.isAfter(to)) {
             throw invalid(List.of(new ErrorResponse.FieldError("from", ErrorCode.VALIDATION_FALLBACK_MESSAGE)));
