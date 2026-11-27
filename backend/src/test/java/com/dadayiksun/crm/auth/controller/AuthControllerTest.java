@@ -1,10 +1,13 @@
 package com.dadayiksun.crm.auth.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,11 +19,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import com.dadayiksun.crm.auth.access.AuthSession;
 import com.dadayiksun.crm.auth.access.AuthWebConfig;
 import com.dadayiksun.crm.auth.access.RoleAccessFilter;
 import com.dadayiksun.crm.auth.domain.Role;
 import com.dadayiksun.crm.auth.domain.Staff;
 import com.dadayiksun.crm.auth.service.LoginService;
+import com.dadayiksun.crm.common.audit.SessionKeys;
 import com.dadayiksun.crm.common.error.ApiException;
 import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.common.error.GlobalExceptionHandler;
@@ -99,5 +104,48 @@ class AuthControllerTest {
         mvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error.code").value("SESSION_EXPIRED"));
+    }
+
+    @Test
+    void 로그아웃하면_세션이_지워지고_me는_401() throws Exception {
+        when(loginService.login("groomer", "pw")).thenReturn(GROOMER);
+        MockHttpSession session = (MockHttpSession) mvc.perform(login("{\"loginId\":\"groomer\",\"password\":\"pw\"}"))
+                .andReturn().getRequest().getSession();
+
+        mvc.perform(withCsrf(post("/api/auth/logout")).session(session))
+                .andExpect(status().isOk());
+        assertThat(session.isInvalid()).isTrue();
+
+        mvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("SESSION_EXPIRED"));
+    }
+
+    @Test
+    void 로그인이_없어도_로그아웃은_200() throws Exception {
+        mvc.perform(withCsrf(post("/api/auth/logout")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void CSRF_토큰_없는_로그아웃은_403() throws Exception {
+        mvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void 로그인_뒤_8시간이_지난_세션은_401_다시_로그인() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(SessionKeys.STAFF_ID, 3L);
+        session.setAttribute(AuthSession.ROLE, "GROOMER");
+        session.setAttribute(AuthSession.LOGIN_AT,
+                Instant.now().minus(AuthSession.MAX_AGE).minusSeconds(1).toEpochMilli());
+
+        mvc.perform(get("/api/auth/me").session(session))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.code").value("SESSION_EXPIRED"))
+                .andExpect(jsonPath("$.error.message").value("다시 로그인해 주세요."));
+        assertThat(session.isInvalid()).isTrue();
     }
 }

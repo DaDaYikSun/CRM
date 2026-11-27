@@ -16,3 +16,8 @@ export function login(loginId: string, password: string): Promise<CurrentStaff> 
 export function fetchMe(): Promise<CurrentStaff> {
   return api.get<CurrentStaff>("/api/auth/me");
 }
+
+/** 로그아웃 (POL-ACC-008, #167). 로그인이 없거나 만료됐어도 성공한다 */
+export function logout(): Promise<void> {
+  return api.post<void>("/api/auth/logout");
+}

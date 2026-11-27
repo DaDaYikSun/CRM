@@ -19,7 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 
-/** 계약 C3 로그인 · 현재 직원 (API 설계 3-1). 로그아웃 · 새 비밀번호는 초안 17 · 33이 더한다. */
+/** 계약 C3 로그인 · 현재 직원 · 로그아웃 (API 설계 3-1). 새 비밀번호는 #150이 더한다. */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -48,5 +48,12 @@ public class AuthController {
             }
             throw e;
         }
+    }
+
+    /** 로그아웃 (POL-ACC-008, #167). 로그인이 없거나 이미 만료됐어도 200 */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(HttpServletRequest request) {
+        AuthSession.end(request);
+        return ApiResponse.of(null);
     }
 }
