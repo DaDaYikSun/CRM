@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.dadayiksun.crm.auth.access.AuthTestSupport;
+import com.dadayiksun.crm.auth.domain.Role;
 import com.dadayiksun.crm.common.error.GlobalExceptionHandler;
 import com.dadayiksun.crm.common.web.PageQuery;
 import com.dadayiksun.crm.search.controller.SearchController;
@@ -95,5 +97,28 @@ class SearchTest {
                 .andExpect(jsonPath("$.data.items[0].phone").doesNotExist())
                 .andExpect(jsonPath("$.data.items[0].birthDateEstimated").value(true))
                 .andExpect(jsonPath("$.data.items[0].siblingNames[0]").value("콩이"));
+    }
+
+    @Test
+    void 초성_자음만_있으면_초성_검색_섞이면_이름_검색() {
+        assertThat(SearchQuery.parse("ㅊ ㅋ").text()).isEqualTo("ㅊㅋ");
+        assertThat(SearchQuery.parse("ㅊ ㅋ").chosung()).isTrue();
+        assertThat(SearchQuery.parse("ㅊ코").chosung()).isFalse();
+        assertThat(SearchQuery.parse("초코").chosung()).isFalse();
+        assertThat(SearchQuery.parse("0000").chosung()).isFalse();
+    }
+
+    @Test
+    void 초성_검색도_미용사가_쓰고_번호는_뒤_4자리만() throws Exception {
+        SearchQuery q = SearchQuery.parse("ㅊㅋ");
+        when(repository.count(q)).thenReturn(1L);
+        when(repository.find(q, 20, 0)).thenReturn(List.of(new SearchItem(1, "초코", 2, "김보호", "0000",
+                "말티즈", LocalDate.of(2023, 5, 2), false, "ACTIVE", List.of())));
+        for (Role role : new Role[] {Role.DESK, Role.GROOMER}) {
+            mvc.perform(get("/api/search").param("q", "ㅊㅋ").session(AuthTestSupport.session(role)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.items[0].petName").value("초코"))
+                    .andExpect(jsonPath("$.data.items[0].phone").doesNotExist());
+        }
     }
 }

@@ -71,6 +71,9 @@ public class SearchRepository {
             // 4자리면 번호 뒤 4자리, 그 밖은 번호 일부 ('010-1234' = '0101234')
             return q.text().length() == 4 ? "g.phone_last4 = :q" : "g.phone LIKE :like";
         }
+        if (q.chosung()) {
+            return "(p.name_chosung LIKE :like OR g.name_chosung LIKE :like)";
+        }
         return "(p.name LIKE :like OR g.name LIKE :like)";
     }
 
