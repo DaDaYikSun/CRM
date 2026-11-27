@@ -162,6 +162,7 @@ final class CycleFakes {
         final Map<Long, PetProfile> pets = new HashMap<>();
         final List<VisitInfo> visits = new ArrayList<>();
         final Map<Long, List<VaccineRule>> rules = new LinkedHashMap<>();
+        final java.util.Set<Long> selective = new java.util.HashSet<>();
 
         @Override
         public Optional<PetProfile> petProfile(long petId) {
@@ -189,6 +190,11 @@ final class CycleFakes {
         @Override
         public Map<Long, List<VaccineRule>> activeRulesByType() {
             return rules;
+        }
+
+        @Override
+        public java.util.Set<Long> selectiveTypeIds() {
+            return selective;
         }
     }
 }

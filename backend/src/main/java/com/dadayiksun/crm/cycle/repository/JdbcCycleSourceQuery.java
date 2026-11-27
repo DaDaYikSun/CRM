@@ -2,10 +2,12 @@ package com.dadayiksun.crm.cycle.repository;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -86,5 +88,16 @@ public class JdbcCycleSourceQuery implements CycleSourceQuery {
                     rs.getObject("dose_count", Integer.class)));
         });
         return byType;
+    }
+
+    @Override
+    public Set<Long> selectiveTypeIds() {
+        // PREVENTIVE 행은 쓰는지(is_active)와 상관없이 본다: 예방 행을 잠시 꺼도 예방 처치 종류가 선택 접종으로 바뀌지 않게 (PR #239 리뷰)
+        return new HashSet<>(jdbc.queryForList("""
+                SELECT t.vaccine_type_id FROM vaccine_type t
+                 WHERE t.is_major = 0
+                   AND NOT EXISTS (SELECT 1 FROM vaccine_rule r
+                                    WHERE r.vaccine_type_id = t.vaccine_type_id AND r.phase = 'PREVENTIVE')
+                """, Long.class));
     }
 }

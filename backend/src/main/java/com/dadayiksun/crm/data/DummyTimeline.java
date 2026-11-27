@@ -42,6 +42,18 @@ final class DummyTimeline {
                 LocalDateTime.parse(row.get("contacted_at").replace(' ', 'T')), row);
     }
 
+    /**
+     * 여러 아이의 등록 뒤 기록을 한 줄로: 시각 → 방문 먼저 → 같은 연락 묶음끼리 붙여서 → 아이 번호.
+     * 같은 집 묶음 연락은 같은 시각 · 같은 contact_group_id라 이어서 나온다 (적재기가 묶음 끝에서 후속 처리를 한 번 부른다).
+     */
+    static List<Event> merge(List<Event> events) {
+        List<Event> sorted = new ArrayList<>(events);
+        sorted.sort(Comparator.comparing(Event::at).thenComparing(Event::kind)
+                .thenComparing(e -> e.row().getOrDefault("contact_group_id", ""))
+                .thenComparing(e -> Long.parseLong(e.row().get("pet_id"))));
+        return sorted;
+    }
+
     static Plan plan(LocalDate registeredOn, List<Event> events) {
         List<Event> sorted = new ArrayList<>(events);
         // 같은 시각이면 방문 먼저: 방문으로 연 다음 주기에 그 뒤 연락이 붙는다
