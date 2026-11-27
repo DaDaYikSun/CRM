@@ -15,7 +15,6 @@ import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.contact.ContactFakes;
 import com.dadayiksun.crm.contact.dto.ContactPanelResponse;
 import com.dadayiksun.crm.contact.dto.SaveContactRequest;
-import com.dadayiksun.crm.contact.dto.SaveContactResponse;
 import com.dadayiksun.crm.contact.repository.ContactLogRepository.Row;
 import com.dadayiksun.crm.contact.repository.ContactQuery.OpenSchedule;
 
@@ -51,7 +50,7 @@ class ContactSaveServiceTest {
 
     @Test
     void 예정_항목마다_한_행_같은_묶음으로_저장하고_직원_시간은_서버가_붙인다() {
-        SaveContactResponse res = service.save(request("광견병 같이", null,
+        ContactSaveService.Saved res = service.save(request("광견병 같이", null,
                 item(101, "BOOKED"), item(102, "BOOKED"), item(103, "REFUSED")), STAFF);
 
         assertThat(logs.rows).hasSize(3);
@@ -62,7 +61,7 @@ class ContactSaveServiceTest {
         assertThat(logs.rows).extracting(Row::contactedAt).containsOnly(LocalDateTime.of(2026, 11, 25, 10, 0));
         assertThat(logs.rows).extracting(Row::memo).containsOnly("광견병 같이");
         assertThat(followUp.applied).containsExactly(res.contactGroupId());
-        assertThat(res.followUp()).isNull();
+        assertThat(res.followUp().closedScheduleIds()).isEmpty();
     }
 
     @Test

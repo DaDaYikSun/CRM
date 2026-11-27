@@ -135,6 +135,34 @@ public class JdbcContactQuery implements ContactQuery {
     }
 
     @Override
+    public List<GroupItem> groupItems(String contactGroupId) {
+        return jdbc.query("""
+                SELECT c.schedule_id, c.pet_id, p.name AS pet_name, c.guardian_id, g.phone, g.sms_agreed, c.result,
+                       c.next_contact_date, s.no_answer_count, s.service_type, vt.name AS vaccine_type_name, s.due_date,
+                       c.contacted_at, c.created_by
+                  FROM contact_log c
+                  JOIN schedule s ON s.schedule_id = c.schedule_id
+                  JOIN pet p ON p.pet_id = c.pet_id
+                  JOIN guardian g ON g.guardian_id = c.guardian_id
+                  LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
+                 WHERE c.contact_group_id = :groupId AND c.is_mock_sms = 0
+                 ORDER BY c.contact_log_id
+                """, Map.of("groupId", contactGroupId), (rs, i) -> new GroupItem(rs.getLong("schedule_id"),
+                rs.getLong("pet_id"), rs.getString("pet_name"), rs.getLong("guardian_id"), rs.getString("phone"),
+                rs.getBoolean("sms_agreed"), rs.getString("result"),
+                rs.getDate("next_contact_date") == null ? null : rs.getDate("next_contact_date").toLocalDate(),
+                rs.getInt("no_answer_count"), rs.getString("service_type"), rs.getString("vaccine_type_name"),
+                rs.getDate("due_date").toLocalDate(), rs.getTimestamp("contacted_at").toLocalDateTime(),
+                rs.getLong("created_by")));
+    }
+
+    @Override
+    public String messageTemplate(String templateCode) {
+        return jdbc.queryForObject("SELECT body FROM message_template WHERE template_code = :code",
+                Map.of("code", templateCode), String.class);
+    }
+
+    @Override
     public List<OpenSchedule> openSchedules(Collection<Long> scheduleIds) {
         if (scheduleIds.isEmpty()) {
             return List.of();

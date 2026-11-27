@@ -114,6 +114,11 @@ public class Guardian extends AuditEntity {
         this.phoneStatus = "OK";
     }
 
+    /** 연락 결과 '번호 오류' (FR-CNT-003). 번호를 고치면 changePhone이 OK로 되돌린다 */
+    public void markPhoneWrong() {
+        this.phoneStatus = "WRONG";
+    }
+
     public void changeSubPhone(String subPhone) {
         this.subPhone = subPhone;
     }
