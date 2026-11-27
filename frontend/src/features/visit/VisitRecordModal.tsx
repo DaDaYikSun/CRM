@@ -6,7 +6,7 @@ import { Notice } from "@/components/ui/Notice";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
-import { ApiError, newIdempotencyKey, SAVE_FAILED_MESSAGE } from "@/lib/api/client";
+import { ApiError, LOAD_FAILED_MESSAGE, newIdempotencyKey, SAVE_FAILED_MESSAGE } from "@/lib/api/client";
 import { fetchVaccineTypes, type VaccineTypeOption } from "@/lib/api/customer";
 import { recordVisit, type VisitServiceType } from "@/lib/api/visit";
 import { todayKst } from "@/lib/utils/date";
@@ -15,7 +15,7 @@ import styles from "./visit.module.css";
 
 // CMP VisitRecordModal (S-09, FR-VIS-001 · 002, 화면 설계 SCR-S09). S-07 · S-11 위에 연다.
 // 미용사는 접종 구분이 꺼진다 (서버도 403, T3). 데려온 사람 번호는 #178, 나가기 경고는 #184가 붙인다.
-// 저장 키는 모달 하나에 하나 (K15). 실패(4xx)는 서버가 키를 기억하지 않아 입력을 고쳐 같은 키로 다시 보낸다.
+// 저장 키 (K15): 같은 내용으로 다시 보내면 같은 키라 두 번 저장되지 않고, 내용을 고치면 새 키로 보낸다.
 export function VisitRecordModal({
   petId,
   petName,
@@ -40,7 +40,10 @@ export function VisitRecordModal({
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [idempotencyKey] = useState(newIdempotencyKey);
+  const [typesFailed, setTypesFailed] = useState(false);
+  const [typesAttempt, setTypesAttempt] = useState(0);
+  // 같은 내용으로 다시 보낼 때만 같은 키를 쓴다. 내용이 바뀌면 새 키 (응답을 못 받은 뒤 내용을 바꿔 보내도 옛 응답이 오지 않게)
+  const lastSent = useRef<{ body: string; key: string } | null>(null);
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -48,25 +51,26 @@ export function VisitRecordModal({
 
   useEffect(() => {
     if (groomer) return;
+    setTypesFailed(false);
     fetchVaccineTypes()
       .then(setTypes)
-      .catch(() => setTypes([]));
-  }, [groomer]);
+      .catch(() => setTypesFailed(true));
+  }, [groomer, typesAttempt]);
 
   async function save() {
+    const input = {
+      serviceType: service,
+      vaccineTypeId: service === "VACCINE" ? Number(vaccineTypeId) : null,
+      visitDate,
+      memo: memo.trim() || null,
+    };
+    const body = JSON.stringify(input);
+    const key = lastSent.current?.body === body ? lastSent.current.key : newIdempotencyKey();
+    lastSent.current = { body, key };
     setSaving(true);
     setError(null);
     try {
-      await recordVisit(
-        petId,
-        {
-          serviceType: service,
-          vaccineTypeId: service === "VACCINE" ? Number(vaccineTypeId) : null,
-          visitDate,
-          memo: memo.trim() || null,
-        },
-        idempotencyKey,
-      );
+      await recordVisit(petId, input, key);
       onSaved(savedMessage(service));
     } catch (e) {
       // 자동으로 다시 보내지 않고 입력을 둔다 (POL-ERR-002). 4xx는 서버 문구(무지개다리 · 권한 · 입력 확인)
@@ -77,7 +81,15 @@ export function VisitRecordModal({
   }
 
   return (
-    <dialog ref={dialog} className={styles.dialog} aria-labelledby="visit-title" onCancel={onClose}>
+    <dialog
+      ref={dialog}
+      className={styles.dialog}
+      aria-labelledby="visit-title"
+      onCancel={(e) => {
+        e.preventDefault(); // Esc: 저장 중에는 닫지 않는다 (늦게 끝난 저장이 다음 모달을 닫지 않게)
+        if (!saving) onClose();
+      }}
+    >
       <form
         className={styles.form}
         onSubmit={(e) => {
@@ -107,6 +119,18 @@ export function VisitRecordModal({
             onChange={setVaccineTypeId}
           />
         )}
+        {service === "VACCINE" && typesFailed && (
+          <Notice
+            tone="danger"
+            actions={
+              <Button type="button" variant="ghost" size="sm" onClick={() => setTypesAttempt((n) => n + 1)}>
+                다시 시도
+              </Button>
+            }
+          >
+            {LOAD_FAILED_MESSAGE}
+          </Notice>
+        )}
         <TextField
           label={service === "VACCINE" ? "방문 날짜" : "미용 날짜"}
           required
@@ -123,7 +147,7 @@ export function VisitRecordModal({
         <p className={styles.hint}>{VISIT_COPY.guide[service]}</p>
         {error && <Notice tone="danger">{error}</Notice>}
         <div className={styles.actions}>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" disabled={saving} onClick={onClose}>
             취소
           </Button>
           <Button type="submit" loading={saving} disabled={!canSave(service, vaccineTypeId, visitDate, memo, today)}>

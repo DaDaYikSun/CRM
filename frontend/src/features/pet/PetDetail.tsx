@@ -22,7 +22,7 @@ import styles from "./pet.module.css";
 
 // S-07 아이 상세 (FR-VIS-003 · FR-CUS-003 · FR-CUS-005). 미용사는 프로필 · 다음 예정일 · 미용 줄만 읽고 [미용 기록]만 본다 (POL-ACC-011).
 // 숨김은 편의일 뿐이고 서버가 막는다 (NFR-SEC-002). [접종 기록] · [미용 기록]은 S-09 모달(#148)을 연다.
-// 무지개다리 아이의 회색 처리 · 버튼 정리는 초안 21이 맡는다.
+// 무지개다리 아이는 기록 버튼을 숨긴다 (#148). 회색 처리 등 나머지 정리는 초안 21이 맡는다.
 export function PetDetail({ petId, role }: { petId: number; role: Role }) {
   const [detail, setDetail] = useState<PetDetailResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -104,10 +104,13 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
         )}
       </section>
 
-      <div className={styles.actions}>
-        {!groomer && <Button variant="secondary" onClick={() => setVisitModal("VACCINE")}>접종 기록</Button>}
-        <Button variant="secondary" onClick={() => setVisitModal("GROOMING")}>미용 기록</Button>
-      </div>
+      {/* 무지개다리 아이는 기록 버튼이 없다 (SCR-S09-03, POL-END-002). 서버도 409로 막는다 */}
+      {!rainbow && (
+        <div className={styles.actions}>
+          {!groomer && <Button variant="secondary" onClick={() => setVisitModal("VACCINE")}>접종 기록</Button>}
+          <Button variant="secondary" onClick={() => setVisitModal("GROOMING")}>미용 기록</Button>
+        </div>
+      )}
       {visitModal && (
         <VisitRecordModal
           petId={pet.petId}
@@ -119,7 +122,7 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
             setVisitModal(null);
             setToast(message);
             load(); // 다음 예정일 다시 읽기
-            setTimelineKey((n) => n + 1); // 타임라인 맨 위에 새 기록 (SCR-S09-07)
+            setTimelineKey((n) => n + 1); // 타임라인을 새로 만들어 첫 쪽 맨 위에 새 기록 (SCR-S09-07)
           }}
         />
       )}
@@ -141,7 +144,7 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
         })}
       </section>
 
-      <Timeline petId={pet.petId} showFilter={!groomer} reloadKey={timelineKey} />
+      <Timeline key={timelineKey} petId={pet.petId} showFilter={!groomer} />
       {toast && <Toast message={toast} onClose={closeToast} />}
     </div>
   );
