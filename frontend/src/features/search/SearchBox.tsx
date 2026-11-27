@@ -71,6 +71,8 @@ export function SearchBox() {
         aria-label="통합 검색"
         onChange={(e) => {
           setQ(e.target.value);
+          setItems([]); // 이전 검색어의 미리보기가 새 검색어 아래 남지 않게
+          setFailed(false);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
