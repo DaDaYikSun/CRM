@@ -20,12 +20,15 @@ import {
   type CoatTypeOption,
   type PhoneCheckResult,
 } from "@/lib/api/customer";
+import { todayKst } from "@/lib/utils/date";
 import { normalizePhone } from "@/lib/utils/phone";
 import {
   EMPTY_FORM,
   REGISTERED_TOAST,
   REGISTER_COPY,
   REQUIRED_LABELS,
+  VALUE_CHECK_MESSAGE,
+  birthInvalid,
   canSave,
   defaultCoatTypeFor,
   duplicateWarning,
@@ -67,6 +70,7 @@ export function RegisterForm() {
 
   // 폼 하나에 저장 키 하나. 저장이 끝날 때까지 같은 키, 성공하면 다음 저장에 새 키 (K15, frontend/README.md)
   const idempotencyKey = useRef<string | null>(null);
+  const sentBody = useRef<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchBreeds(), fetchCoatTypes()])
@@ -121,12 +125,18 @@ export function RegisterForm() {
   function errorOf(field: RequiredField): string | undefined {
     if (serverErrors[field]) return serverErrors[field];
     if (touched.has(field) && missing.has(field)) return requiredMessage(REQUIRED_LABELS[field]);
+    if (field === "birth" && birthInvalid(form)) return VALUE_CHECK_MESSAGE;
     return undefined;
   }
 
   async function save() {
     if (!canSave(form, mode) || saving) return;
-    idempotencyKey.current ??= newIdempotencyKey();
+    // 응답 없이 끊긴 뒤 본문을 고쳐 다시 저장하면 같은 키로 처음 응답이 돌아오므로, 본문이 바뀌면 키를 새로 만든다
+    const body = JSON.stringify([mode, toRegisterInput(form)]);
+    if (idempotencyKey.current === null || sentBody.current !== body) {
+      idempotencyKey.current = newIdempotencyKey();
+      sentBody.current = body;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -320,6 +330,7 @@ export function RegisterForm() {
                   label={REQUIRED_LABELS.birth}
                   required
                   type="date"
+                  max={todayKst()}
                   value={form.birthDate}
                   onChange={(v) => update("birthDate", v, "birth")}
                   onBlur={() => touch("birth")}

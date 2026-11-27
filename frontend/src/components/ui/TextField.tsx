@@ -54,6 +54,7 @@ export function TextField({
         disabled={disabled}
         min={min}
         max={max}
+        aria-required={required || undefined}
         aria-invalid={error ? true : undefined}
         aria-describedby={error || hint ? messageId : undefined}
       />

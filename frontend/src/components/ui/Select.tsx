@@ -36,6 +36,7 @@ export function Select({ label, required, options, value, onChange, onBlur, erro
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
         disabled={disabled}
+        aria-required={required || undefined}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? messageId : undefined}
       >

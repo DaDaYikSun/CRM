@@ -2,6 +2,7 @@
 // 근거: FR-CUS-001 · 002, POL-REG-001~005 · 010, POL-ERR-003, 정책 4-2 · 4-4, API 설계 3-2 · 3-3.
 
 import type { BreedOption, PetInput, RegisterGuardianInput } from "@/lib/api/customer";
+import { todayKst } from "@/lib/utils/date";
 import { normalizePhone } from "@/lib/utils/phone";
 
 /** 정책 4-4 S-08 화면별 안내 문구 (글자 그대로) */
@@ -75,11 +76,25 @@ export type RegisterMode =
   | { kind: "new" }
   | { kind: "existing"; guardianId: number; guardianName: string; petCount: number };
 
+/** 정책 4-2 값 형식 오류 문구 (서버 VALIDATION_FAILED와 같은 글자) */
+export const VALUE_CHECK_MESSAGE = "입력한 값을 확인해 주세요.";
+
+/** 서버 BirthDateResolver.MAX_YEARS와 같게 맞춘다 (문서에 위쪽 한도 없음, [?] #145 보고) */
+export const MAX_APPROX_YEARS = 30;
+
 /** 대략 나이 칸의 정수 값. 비었거나 정수가 아니면 null */
 function approxNumber(value: string): number | null {
   const trimmed = value.trim();
   if (!/^-?\d+$/.test(trimmed)) return null;
   return Number(trimmed);
+}
+
+/** 생년월일은 오늘(한국 시간) 이하, 대략 나이는 개월 1~11 · 나이 1~30 (POL-REG-004). 칸이 비었으면 여기서 보지 않는다 */
+export function birthInvalid(form: RegisterFormState, today: string = todayKst()): boolean {
+  if (!form.birthUnknown) return form.birthDate !== "" && form.birthDate > today;
+  const n = approxNumber(form.approxValue);
+  if (n === null) return false;
+  return form.approxUnit === "months" ? n < 1 || n > 11 : n < 1 || n > MAX_APPROX_YEARS;
 }
 
 function isFilled(form: RegisterFormState, field: RequiredField): boolean {
@@ -111,7 +126,7 @@ export function missingFields(form: RegisterFormState, mode: RegisterMode): Requ
 }
 
 export function canSave(form: RegisterFormState, mode: RegisterMode): boolean {
-  return missingFields(form, mode).length === 0;
+  return missingFields(form, mode).length === 0 && !birthInvalid(form);
 }
 
 /** 번호를 다 넣었을 때만 같은 번호를 확인한다 (DB: 숫자 9~11자리) */
