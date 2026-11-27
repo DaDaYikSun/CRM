@@ -29,6 +29,7 @@ export function useLeaveConfirm(isDirty: boolean): { leaveDialog: ReactNode; con
   useEffect(() => {
     if (!isDirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirty.current) return; // [나가기]로 이미 승인한 이동(예: router.back())은 브라우저가 다시 묻지 않게
       event.preventDefault();
       event.returnValue = ""; // 옛 브라우저용
     };
