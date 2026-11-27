@@ -67,6 +67,8 @@ export function TargetRow({ line, today, selected, onClick }: TargetRowProps) {
           type="button"
           className={styles.more}
           aria-expanded={open}
+          // 화면 글자(+N · −)를 이름 앞에 그대로 두고 누구의 무엇인지 덧붙인다 (WCAG 2.5.3) [제안: 문구는 정책에 없음]
+          aria-label={open ? `− ${line.guardianName} 접종 접기` : `+${more} ${line.guardianName} 접종 펼치기`}
           onClick={(e) => {
             e.stopPropagation();
             setOpen(!open);
