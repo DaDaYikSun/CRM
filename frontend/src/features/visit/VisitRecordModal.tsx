@@ -41,6 +41,8 @@ export function VisitRecordModal({
   const [types, setTypes] = useState<VaccineTypeOption[]>([]);
   const [vaccineTypeId, setVaccineTypeId] = useState("");
   const [visitDate, setVisitDate] = useState(today);
+  // 모달을 연 날짜. '입력 있음' 비교에만 쓴다: 연 채로 자정을 넘겨도 손대지 않은 날짜를 입력으로 보지 않게 (PR #254 리뷰)
+  const [openedDate] = useState(today);
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function VisitRecordModal({
   // 같은 내용으로 다시 보낼 때만 같은 키를 쓴다. 내용이 바뀌면 새 키 (응답을 못 받은 뒤 내용을 바꿔 보내도 옛 응답이 오지 않게)
   const lastSent = useRef<{ body: string; key: string } | null>(null);
   const { leaveDialog, confirmLeave } = useLeaveConfirm(
-    isVisitDirty({ service, vaccineTypeId, visitDate, memo }, openedService, today),
+    isVisitDirty({ service, vaccineTypeId, visitDate, memo }, openedService, openedDate),
   );
 
   useEffect(() => {
