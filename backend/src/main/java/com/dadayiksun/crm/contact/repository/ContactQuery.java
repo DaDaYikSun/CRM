@@ -29,7 +29,7 @@ public interface ContactQuery {
     List<HistoryRow> history(long guardianId, int limit, long offset);
 
     /** 한 아이의 연락 기록 전부, 최근 순 (아이 상세 통합 타임라인, FR-VIS-003). 행마다 어떤 예정 항목에 남긴 것인지 붙는다 */
-    List<PetContactRow> petHistory(long petId);
+    List<HistoryRow> petHistory(long petId);
 
     /** 진행 중(OPEN)인 예정만 돌려준다. 없거나 끝난 예정은 빠진다 */
     List<OpenSchedule> openSchedules(Collection<Long> scheduleIds);
@@ -37,13 +37,10 @@ public interface ContactQuery {
     record PanelItem(long petId, String petName, ContactPanelResponse.Item item) {
     }
 
+    /** @param itemName 그 연락을 남긴 예정 항목: 접종이면 접종 종류 이름, 미용이면 '미용' */
     record HistoryRow(long id, LocalDateTime contactedAt, String method, String result, String talkedWith, String memo,
                       String staffName, long createdBy, boolean edited, boolean converted, boolean mockSms,
-                      String petName) {
-    }
-
-    /** @param vaccineTypeName 접종 예정이면 접종 종류 이름, 미용이면 null */
-    record PetContactRow(HistoryRow row, String serviceType, String vaccineTypeName) {
+                      String petName, String itemName) {
     }
 
     record OpenSchedule(long scheduleId, long petId, long guardianId, boolean petActive) {

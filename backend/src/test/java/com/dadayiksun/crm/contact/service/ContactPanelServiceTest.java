@@ -19,7 +19,6 @@ import com.dadayiksun.crm.contact.dto.ContactHistoryItem;
 import com.dadayiksun.crm.contact.dto.ContactPanelResponse;
 import com.dadayiksun.crm.contact.repository.ContactQuery.HistoryRow;
 import com.dadayiksun.crm.contact.repository.ContactQuery.PanelItem;
-import com.dadayiksun.crm.contact.repository.ContactQuery.PetContactRow;
 
 /** 연락 패널 · 지난 연락 (FR-CNT-001, POL-CNT-006, API 설계 3-6). 2026-11-25(수) 10시 기준. */
 class ContactPanelServiceTest {
@@ -44,7 +43,13 @@ class ContactPanelServiceTest {
 
     private static HistoryRow history(long id, LocalDateTime at, String method, String result, String talkedWith,
                                       long createdBy, boolean mockSms) {
-        return new HistoryRow(id, at, method, result, talkedWith, null, "데스크", createdBy, false, false, mockSms, "보리");
+        return history(id, at, method, result, talkedWith, createdBy, mockSms, "종합백신");
+    }
+
+    private static HistoryRow history(long id, LocalDateTime at, String method, String result, String talkedWith,
+                                      long createdBy, boolean mockSms, String itemName) {
+        return new HistoryRow(id, at, method, result, talkedWith, null, "데스크", createdBy, false, false, mockSms, "보리",
+                itemName);
     }
 
     @Test
@@ -95,15 +100,30 @@ class ContactPanelServiceTest {
     @Test
     void 아이_타임라인_연락_줄은_항목_이름을_앞에_붙인다() {
         query.petHistory.addAll(List.of(
-                new PetContactRow(history(2, LocalDateTime.of(2026, 11, 25, 9, 40), "PHONE", "BOOKED", "SELF", ME, false),
-                        "VACCINE", "종합백신"),
-                new PetContactRow(history(1, LocalDateTime.of(2026, 11, 25, 9, 40), "PHONE", "BOOKED", "SELF", ME, false),
-                        "GROOMING", null)));
+                history(2, LocalDateTime.of(2026, 11, 25, 9, 40), "PHONE", "BOOKED", "SELF", ME, false, "종합백신"),
+                history(1, LocalDateTime.of(2026, 11, 25, 9, 40), "PHONE", "BOOKED", "SELF", ME, false, "미용")));
 
         assertThat(service.petHistory(12)).extracting(ContactHistoryItem::summary)
                 .containsExactly("종합백신 · 전화 · 본인 · 예약함", "미용 · 전화 · 본인 · 예약함");
         assertThat(service.petHistory(12)).extracting(ContactHistoryItem::date)
                 .containsOnly(java.time.LocalDate.of(2026, 11, 25));
+    }
+
+    @Test
+    void 지난_연락은_방법_통화한_사람_결과_항목_이름을_따로_준다() {
+        query.history.addAll(List.of(
+                history(2, LocalDateTime.of(2026, 11, 25, 9, 40), "PHONE", "NO_ANSWER", "FAMILY", ME, false, "미용"),
+                history(1, LocalDateTime.of(2026, 11, 24, 15, 0), "SMS", null, null, ME, true, "종합백신")));
+
+        List<ContactHistoryItem> items = service.history(7, PageQuery.parse("1"), ME).items();
+
+        assertThat(items.get(0)).extracting(ContactHistoryItem::method, ContactHistoryItem::talkedWith,
+                ContactHistoryItem::result, ContactHistoryItem::itemName)
+                .containsExactly("PHONE", "FAMILY", "NO_ANSWER", "미용");
+        // 모의 발송만 한 행은 결과 · 통화한 사람이 비고, 요약은 그대로
+        assertThat(items.get(1)).extracting(ContactHistoryItem::result, ContactHistoryItem::talkedWith,
+                ContactHistoryItem::itemName, ContactHistoryItem::summary)
+                .containsExactly(null, null, "종합백신", "문자 · 모의 발송");
     }
 
     @Test
