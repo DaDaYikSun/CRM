@@ -2,23 +2,30 @@ import { describe, expect, it } from "vitest";
 import type { PanelItem } from "@/lib/api/contact";
 import { canSave, defaultNextContactDate, formatPhone, isSecondDayNoAnswer, savedToast, secondDayCopy } from "./contactRules";
 
-const item = (scheduleId: number, noAnswerCount = 0): PanelItem => ({
+const TODAY = "2026-11-25";
+
+const item = (scheduleId: number, noAnswerCount = 0, nextContactDate: string | null = noAnswerCount ? TODAY : null): PanelItem => ({
   scheduleId,
   serviceType: "VACCINE",
   vaccineTypeName: "종합백신",
   dueDate: "2026-11-24",
   missed: false,
   noAnswerCount,
+  nextContactDate,
 });
 
 describe("2일차 확인 창", () => {
   it("어제 안 받은 항목에 다시 '전화 안 받음'을 고르면 띄운다", () => {
-    expect(isSecondDayNoAnswer([item(1, 1), item(2)], { 1: "NO_ANSWER", 2: "NO_ANSWER" })).toBe(true);
+    expect(isSecondDayNoAnswer([item(1, 1), item(2)], { 1: "NO_ANSWER", 2: "NO_ANSWER" }, TODAY)).toBe(true);
+  });
+
+  it("같은 날 다시 안 받으면(다음 연락 예정일이 내일) 띄우지 않는다", () => {
+    expect(isSecondDayNoAnswer([item(1, 1, "2026-11-26")], { 1: "NO_ANSWER" }, TODAY)).toBe(false);
   });
 
   it("처음 안 받은 항목이거나 다른 결과면 띄우지 않는다", () => {
-    expect(isSecondDayNoAnswer([item(1, 0)], { 1: "NO_ANSWER" })).toBe(false);
-    expect(isSecondDayNoAnswer([item(1, 1)], { 1: "BOOKED" })).toBe(false);
+    expect(isSecondDayNoAnswer([item(1, 0)], { 1: "NO_ANSWER" }, TODAY)).toBe(false);
+    expect(isSecondDayNoAnswer([item(1, 1)], { 1: "BOOKED" }, TODAY)).toBe(false);
   });
 
   it("수신 동의가 없으면 문자를 보낸다는 문구를 쓰지 않는다", () => {

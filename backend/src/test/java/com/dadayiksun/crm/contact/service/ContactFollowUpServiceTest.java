@@ -49,8 +49,16 @@ class ContactFollowUpServiceTest {
 
     private static GroupItem item(long scheduleId, String result, int prevNoAnswer, String service, String vaccine,
                                   LocalDate due, boolean smsAgreed) {
-        return new GroupItem(scheduleId, 12, "보리", 7, "01012345678", smsAgreed, result,
-                "NO_ANSWER".equals(result) ? TOMORROW : null, prevNoAnswer, service, vaccine, due, AT, 3);
+        // 이전 '전화 안 받음'은 어제 남겨서 다음 연락 예정일이 오늘(2일차)인 상태
+        return item(scheduleId, result, prevNoAnswer, prevNoAnswer > 0 ? "NO_ANSWER" : "NONE",
+                prevNoAnswer > 0 ? AT.toLocalDate() : null, service, vaccine, due, smsAgreed);
+    }
+
+    private static GroupItem item(long scheduleId, String result, int prevNoAnswer, String prevState,
+                                  LocalDate prevNext, String service, String vaccine, LocalDate due, boolean smsAgreed) {
+        return new GroupItem(scheduleId, 12, "보리", 7, "01000000000", smsAgreed, result,
+                "NO_ANSWER".equals(result) ? TOMORROW : null, prevNoAnswer, prevState, prevNext, service, vaccine, due,
+                AT, 3);
     }
 
     @Test
@@ -80,7 +88,7 @@ class ContactFollowUpServiceTest {
                 "[다다익선 동물병원] 보리의 종합백신 접종 예정일은 2026-11-20입니다. 방문 전 0200000000로 예약해 주세요.",
                 AT, 3));
         assertThat(out.pendingSms().template()).isEqualTo("VACCINE");
-        assertThat(out.pendingSms().phone()).isEqualTo("01012345678");
+        assertThat(out.pendingSms().phone()).isEqualTo("01000000000");
     }
 
     @Test
@@ -91,6 +99,31 @@ class ContactFollowUpServiceTest {
 
         assertThat(logs.mockSms.get(0).body())
                 .isEqualTo("[다다익선 동물병원] 보리의 다음 미용 예정일은 2026-11-18 무렵입니다. 원하시는 날짜를 0200000000로 알려 주세요.");
+    }
+
+    @Test
+    void 같은_날_다시_안_받으면_1일차_그대로_주기를_끝내지_않는다() {
+        // 오전에 안 받아 다음 연락 예정일이 내일인데, 오후에 다시 걸어도 안 받음
+        query.groupItems.add(item(101, "NO_ANSWER", 1, "NO_ANSWER", TOMORROW, "VACCINE", "종합백신",
+                LocalDate.of(2026, 11, 20), true));
+
+        ContactFollowUpService.Outcome out = service.apply("g1");
+
+        verify(schedules).update(101, "NO_ANSWER", 1, TOMORROW);
+        assertThat(out.closedScheduleIds()).isEmpty();
+        assertThat(logs.mockSms).isEmpty();
+    }
+
+    @Test
+    void 이미_끝난_주기에_다시_안_받음을_남겨도_문자를_또_남기지_않는다() {
+        query.groupItems.add(item(101, "NO_ANSWER", 2, "CLOSED", null, "VACCINE", "종합백신",
+                LocalDate.of(2026, 11, 20), true));
+
+        ContactFollowUpService.Outcome out = service.apply("g1");
+
+        verify(schedules).update(101, "CLOSED", 2, null);
+        assertThat(out.closedScheduleIds()).isEmpty();
+        assertThat(logs.mockSms).isEmpty();
     }
 
     @Test

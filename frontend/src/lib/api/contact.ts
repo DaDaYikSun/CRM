@@ -13,6 +13,7 @@ export interface PanelItem {
   dueDate: string; // YYYY-MM-DD
   missed: boolean; // 저장된 누락 판정이 있는지
   noAnswerCount: number; // 1이면 다시 '전화 안 받음'일 때 2일차 확인 창
+  nextContactDate: string | null; // 이 날 전에 다시 안 받으면 아직 1일차 (POL-TGT-006, PR #225)
 }
 
 export interface ContactPanel {

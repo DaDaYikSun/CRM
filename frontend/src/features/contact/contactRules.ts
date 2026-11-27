@@ -60,9 +60,17 @@ export const NO_ANSWER_RETRY_DAYS = 1;
 /** 이미 한 번 안 받은 항목(noAnswerCount = 1)에 다시 '전화 안 받음' = 2일차 */
 export const SECOND_DAY_PREV_NO_ANSWER = 1;
 
-/** 어제 이미 안 받은 항목에 다시 '전화 안 받음'을 골랐는지 → 저장 전에 2일차 확인 창 */
-export function isSecondDayNoAnswer(items: PanelItem[], results: Results): boolean {
-  return items.some((i) => i.noAnswerCount === SECOND_DAY_PREV_NO_ANSWER && results[i.scheduleId] === "NO_ANSWER");
+/**
+ * 오늘 다시 안 받으면 2일차인 항목: 한 번 안 받았고 다음 연락 예정일이 오늘이거나 지났다.
+ * 예정일 전(같은 날 오전 · 오후 등)에 다시 안 받으면 아직 1일차다. 서버 FollowUpRule과 같은 기준 (PR #225 리뷰)
+ */
+export function isSecondDayItem(item: PanelItem, today: string): boolean {
+  return item.noAnswerCount === SECOND_DAY_PREV_NO_ANSWER && (item.nextContactDate === null || item.nextContactDate <= today);
+}
+
+/** 2일차 항목에 다시 '전화 안 받음'을 골랐는지 → 저장 전에 2일차 확인 창 */
+export function isSecondDayNoAnswer(items: PanelItem[], results: Results, today: string): boolean {
+  return items.some((i) => isSecondDayItem(i, today) && results[i.scheduleId] === "NO_ANSWER");
 }
 
 /** 다음 연락 예정일 기본값: '전화 안 받음'이 하나라도 있으면 내일, 아니면 빈칸 (POL-TGT-006) */

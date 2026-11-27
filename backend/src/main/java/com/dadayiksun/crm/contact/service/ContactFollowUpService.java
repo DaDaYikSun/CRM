@@ -60,7 +60,9 @@ public class ContactFollowUpService {
         boolean wrongNumber = false;
         for (ContactQuery.GroupItem item : items) {
             ContactResult result = ContactResult.valueOf(item.result());
-            FollowUpRule.ScheduleContact next = FollowUpRule.after(result, item.noAnswerCount(), item.nextContactDate());
+            FollowUpRule.ScheduleContact next = FollowUpRule.after(result,
+                    new FollowUpRule.Prev(item.prevContactState(), item.noAnswerCount(), item.prevNextContactDate()),
+                    item.nextContactDate(), item.contactedAt().toLocalDate());
             schedules.update(item.scheduleId(), next.contactState(), next.noAnswerCount(), next.nextContactDate());
             if (next.closed()) {
                 closed.add(item);

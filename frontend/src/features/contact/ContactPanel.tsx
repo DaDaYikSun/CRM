@@ -27,7 +27,7 @@ import {
   formatPhone,
   isSecondDayNoAnswer,
   MEMO_MAX,
-  SECOND_DAY_PREV_NO_ANSWER,
+  isSecondDayItem,
   savedToast,
   secondDayCopy,
   todayContactMessage,
@@ -123,7 +123,7 @@ export function ContactPanel({
 
   function requestSave() {
     if (!panel) return;
-    if (isSecondDayNoAnswer(items, results)) {
+    if (isSecondDayNoAnswer(items, results, today)) {
       dialog.current?.showModal();
       return;
     }
@@ -166,7 +166,7 @@ export function ContactPanel({
 
   const g = panel?.guardian;
   const secondDay = g ? secondDayCopy(g.smsAgreed) : null;
-  const hasSecondDay = items.some((i) => i.noAnswerCount === SECOND_DAY_PREV_NO_ANSWER);
+  const hasSecondDay = items.some((i) => isSecondDayItem(i, today));
 
   return (
     <aside className={styles.panel} aria-label="연락 패널">

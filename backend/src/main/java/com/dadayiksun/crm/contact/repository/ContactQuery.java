@@ -34,7 +34,10 @@ public interface ContactQuery {
     /** 진행 중(OPEN)인 예정만 돌려준다. 없거나 끝난 예정은 빠진다 */
     List<OpenSchedule> openSchedules(Collection<Long> scheduleIds);
 
-    /** 한 번 저장한 연락 결과 행들과 그 주기 · 아이 · 보호자 값 (후속 처리 C14). 모의 발송 행은 빠진다 */
+    /**
+     * 한 번 저장한 연락 결과 행들과 그 주기 · 아이 · 보호자 값 (후속 처리 C14). 모의 발송 행은 빠진다.
+     * 그 주기(schedule) 행을 트랜잭션 끝까지 잠근다: 같은 항목에 동시에 온 저장이 횟수를 덮어쓰거나 2일차 문자를 두 번 남기지 않게
+     */
     List<GroupItem> groupItems(String contactGroupId);
 
     /** 지금 쓰는 문자 문구 (message_template, 정책 4-3, FR-ADM-008). code = VACCINE · GROOMING */
@@ -42,10 +45,12 @@ public interface ContactQuery {
 
     /**
      * @param noAnswerCount   저장 전 그 주기의 연속 '전화 안 받음' 횟수 (schedule)
+     * @param prevContactState · prevNextContactDate 저장 전 그 주기의 연락 상태 · 다음 연락 예정일 (schedule)
      * @param vaccineTypeName 접종이면 접종 종류 이름, 미용이면 null
      */
     record GroupItem(long scheduleId, long petId, String petName, long guardianId, String phone, boolean smsAgreed,
-                     String result, LocalDate nextContactDate, int noAnswerCount, String serviceType,
+                     String result, LocalDate nextContactDate, int noAnswerCount, String prevContactState,
+                     LocalDate prevNextContactDate, String serviceType,
                      String vaccineTypeName, LocalDate dueDate, LocalDateTime contactedAt, long createdBy) {
     }
 
