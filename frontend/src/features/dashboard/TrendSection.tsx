@@ -48,7 +48,19 @@ export function TrendSection({ period }: { period: Period }) {
       </section>
     );
   }
-  if (!data) return null; // 지표 카드가 이미 불러오는 중을 보여 준다
+  // 지표 카드보다 늦게 올 수 있어 자기 로딩 표시를 둔다 (PR #257 리뷰)
+  if (!data) {
+    return (
+      <section className={styles.section} aria-labelledby="trend-heading" aria-busy="true">
+        <h2 id="trend-heading" className={styles.sectionTitle}>
+          재방문율 추이
+        </h2>
+        <p className={styles.status} role="status">
+          {METRICS_COPY.loading}
+        </p>
+      </section>
+    );
+  }
 
   if (!hasTrendData(data.weeks, data.distribution)) {
     return (
@@ -80,7 +92,8 @@ export function TrendSection({ period }: { period: Period }) {
             </li>
           ))}
         </ul>
-        <svg className={styles.chart} viewBox={`0 0 ${LINE.width} ${LINE.height}`} role="img" aria-labelledby="trend-heading">
+        {/* 그림은 눈으로 보는 용도, 같은 값은 아래 숨긴 표로 화면 읽기 프로그램에 준다 (PR #257 리뷰) */}
+        <svg className={styles.chart} viewBox={`0 0 ${LINE.width} ${LINE.height}`} aria-hidden="true">
           {[0, 0.5, 1].map((r) => (
             <g key={r}>
               <line x1={LINE.pad} x2={LINE.width - LINE.pad} y1={yOf(r, LINE)} y2={yOf(r, LINE)} className={styles.gridLine} />
@@ -111,6 +124,29 @@ export function TrendSection({ period }: { period: Period }) {
             );
           })}
         </svg>
+        <table className={styles.visuallyHidden}>
+          <caption>주별 재방문율 추이</caption>
+          <thead>
+            <tr>
+              <th scope="col">주 시작일</th>
+              {TREND_SERIES.map((s) => (
+                <th key={s.key} scope="col">
+                  {s.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {weeks.map((w) => (
+              <tr key={w.weekStart}>
+                <th scope="row">{w.weekStart}</th>
+                {TREND_SERIES.map((s) => (
+                  <td key={s.key}>{pct(w[s.key].rate)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
 
       <section className={styles.section} aria-labelledby="distribution-heading">

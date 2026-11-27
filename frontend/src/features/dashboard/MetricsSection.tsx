@@ -15,7 +15,7 @@ import styles from "./dashboard.module.css";
 
 // S-02 ② 재방문 지표 · ③ 연락 효과 (FR-DASH-002 · 003, 화면 설계 SCR-S02-02 · 03, #157).
 // 기간은 처음 '이번 달'. 이번 달 / 지난 3개월 / 직접 선택으로 바꾸면 페이지 이동 없이 다시 계산한다 (FR-DASH-005, #176).
-const LOADING = "숫자를 불러오는 중입니다."; // 정책 4-2 '숫자 불러오는 중 (S-02)'
+const LOADING = METRICS_COPY.loading;
 
 function ConversionTable({ caption, rows }: { caption: string; rows: ConversionRow[] }) {
   return (

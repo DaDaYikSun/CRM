@@ -206,3 +206,13 @@
   fill: var(--text-muted);
   font-size: 11px;
 }
+
+/* 화면에는 안 보이고 화면 읽기 프로그램만 읽는다 (추이 표, PR #257 리뷰) */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
