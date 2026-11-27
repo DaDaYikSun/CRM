@@ -1,6 +1,7 @@
 -- =====================================================================
 -- 동물병원 재방문 관리 CRM - DDL
 -- 기준: DB 설계(2026-11-23).md 초안 v3, MySQL 8.0 (8.0.16 이상: CHECK 제약 동작)
+-- 2026-11-27: schedule.opened_by_visit_id 추가 (V3__schedule_opened_by_visit.sql, #144 PR #202). 앱 DB는 V1 뒤 V3 마이그레이션으로 바뀐다
 -- v2: 문자 문구·리포트 양식 설정(FR-ADM-008·009) 반영
 -- v3: 테이블 합치기 17개 -> 14개
 --     이력 3개(record_edit_log, rule_change_log, pet_status_history) -> change_log
@@ -286,6 +287,7 @@ CREATE TABLE schedule (
   status               ENUM('OPEN','DONE','VOID') NOT NULL DEFAULT 'OPEN' COMMENT '진행 중 / 완료 / 다시 계산으로 무효',
   miss_threshold_days  SMALLINT  NOT NULL COMMENT '만들 때 설정값 복사, 지난 판정 고정 [POL-CYC-005]',
   done_visit_id        BIGINT    NULL COMMENT '이 주기를 완료시킨 방문',
+  opened_by_visit_id   BIGINT    NULL COMMENT '이 주기를 연 방문 (방문 뒤 다음 주기를 열 때만, V3)',
   done_date            DATE      NULL COMMENT '완료 방문일',
   gap_days             INT       NULL COMMENT 'DATEDIFF(done_date, due_date)',
   missed_at            DATE      NULL COMMENT '누락 판정일. 기준 밖 늦은 완료는 그대로, 방문일이 기준 안이면 완료 때 NULL [11/25 회의 R1, POL-MISS-001, #109]',
@@ -303,6 +305,7 @@ CREATE TABLE schedule (
   PRIMARY KEY (schedule_id),
   UNIQUE KEY uk_schedule_active (active_key),
   UNIQUE KEY uk_schedule_done_visit (done_visit_id),
+  KEY idx_schedule_opened_by_visit (opened_by_visit_id),
   KEY idx_schedule_target (status, due_date),
   KEY idx_schedule_missed (missed_at),
   KEY idx_schedule_pet (pet_id, service_type, status),
@@ -318,7 +321,8 @@ CREATE TABLE schedule (
   CONSTRAINT ck_schedule_threshold CHECK (miss_threshold_days > 0),
   CONSTRAINT fk_schedule_pet          FOREIGN KEY (pet_id) REFERENCES pet (pet_id) ON DELETE RESTRICT,
   CONSTRAINT fk_schedule_vaccine_type FOREIGN KEY (vaccine_type_id) REFERENCES vaccine_type (vaccine_type_id) ON DELETE RESTRICT,
-  CONSTRAINT fk_schedule_done_visit   FOREIGN KEY (done_visit_id) REFERENCES visit (visit_id) ON DELETE RESTRICT
+  CONSTRAINT fk_schedule_done_visit   FOREIGN KEY (done_visit_id) REFERENCES visit (visit_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_schedule_opened_by_visit FOREIGN KEY (opened_by_visit_id) REFERENCES visit (visit_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB COMMENT='예정 일정 (아이 x 서비스 한 주기 = 1행)';
 
 -- ---------------------------------------------------------------------
