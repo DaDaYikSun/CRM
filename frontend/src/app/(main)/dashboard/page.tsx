@@ -6,13 +6,15 @@ import { PageGuide } from "@/components/ui/PageGuide";
 import { loadFailure, type Failure } from "@/lib/api/failure";
 import { getTargetSummary, type TargetSummary } from "@/lib/api/target";
 import { KST_TIME_ZONE } from "@/lib/utils/date";
+import { MetricsSection } from "@/features/dashboard/MetricsSection";
 import { StatCard } from "@/features/dashboard/StatCard";
 import { CARD_LABEL, TODAY_CARD_TABS, targetsHref, todayCards } from "@/features/dashboard/todayCards";
 import styles from "@/features/dashboard/dashboard.module.css";
 
 // S-02 대시보드 (FR-DASH-001, 화면 설계 SCR-S02). 관리자 · 데스크의 로그인 뒤 첫 화면 (POL-ACC-007).
 // 미용사는 middleware.ts가 권한 없음 화면을 보여 주고, 서버 summary도 403이다 (T3, NFR-SEC-002).
-// 이 이슈는 ① 오늘 할 일 카드까지. ② 재방문 지표 · ③ 연락 효과는 #157, ④ 번호 오류 모음은 초안 20이 이 아래에 더한다.
+// ① 오늘 할 일 카드(#156), ② 재방문 지표 · ③ 연락 효과(#157, MetricsSection). ④ 번호 오류 모음은 초안 20이 이 아래에 더한다.
+// ①과 ②③은 따로 불러서, 한쪽이 실패해도 다른 쪽은 보인다.
 const LOADING = "숫자를 불러오는 중입니다."; // 정책 4-2 '숫자 불러오는 중 (S-02)'
 
 const todayLabel = new Intl.DateTimeFormat("ko-KR", { timeZone: KST_TIME_ZONE, dateStyle: "full" });
@@ -77,6 +79,7 @@ export default function DashboardPage() {
           )}
         </>
       )}
+      <MetricsSection />
     </section>
   );
 }
