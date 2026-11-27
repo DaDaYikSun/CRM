@@ -2,9 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { canOpen, HOME_PATH, STAFF_NAME_HEADER, STAFF_ROLE_HEADER } from "@/features/auth/access";
 import type { CurrentStaff } from "@/lib/api/auth";
 import { LOAD_FAILED_MESSAGE } from "@/lib/api/client";
+import { loginPath } from "@/lib/api/loginPath";
+import { SESSION_COOKIE } from "@/features/auth/returnTo";
 
 // 화면 라우트 보호 (FR-AUTH-002, POL-ERR-004).
-// - 로그인이 없으면 /login
+// - 로그인이 없으면 /login. 보던 주소를 next로 넘기고, 세션 쿠키가 있었으면(만료) 안내를 띄우게 expired=1 (#167)
+// - 새 비밀번호를 정해야 하면 /login의 새 비밀번호 카드로 (#150)
 // - 역할이 못 여는 주소면 권한 없음 안내 화면(/forbidden)을 같은 주소로 보여 준다
 // 안내용이다. API는 서버가 따로 막는다 (NFR-SEC-002).
 export const config = { matcher: ["/((?!api|_next|login|favicon.ico).*)"] };
@@ -29,9 +32,16 @@ export async function middleware(request: NextRequest) {
   } catch {
     return new NextResponse(LOAD_FAILED_MESSAGE, { status: 503 });
   }
-  if (!staff) return NextResponse.redirect(new URL("/login", request.url));
+  const { pathname, search } = request.nextUrl;
+  if (!staff) {
+    const expired = request.cookies.has(SESSION_COOKIE);
+    return NextResponse.redirect(new URL(loginPath(`${pathname}${search}`, expired), request.url));
+  }
+  // 임시 비밀번호로 로그인했으면 새 비밀번호를 정할 때까지 로그인 화면의 새 비밀번호 카드로 (#150, POL-ACC-010)
+  if (staff.mustChangePassword) {
+    return NextResponse.redirect(new URL(loginPath(`${pathname}${search}`, false), request.url));
+  }
 
-  const { pathname } = request.nextUrl;
   if (pathname === "/") return NextResponse.redirect(new URL(HOME_PATH[staff.role], request.url));
 
   const headers = new Headers(request.headers);
