@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,6 +24,8 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -116,6 +119,27 @@ class PetProfileAndRevertTest {
         profile.update(1L, new PetProfilePatch(null, null, null, 4L, null));
         assertThat(p.getCoatTypeId()).isEqualTo(4L);
         assertThat(events).hasSize(1);
+    }
+
+    /** cycle은 JDBC로 읽어서 이벤트 전에 저장해 둬야 새 값으로 계산한다 (#235). mock이라 실제 SQL 순서는 실제 DB로 확인했다 */
+    @Test
+    void 생년월일이나_털_유형을_바꾸면_이벤트_전에_flush하고_이름과_체중만이면_flush도_이벤트도_없다() {
+        pet(1, false, null, null);
+        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        PetProfileService service = new PetProfileService(repo, options, mock(JdbcTemplate.class),
+                new KstClock(Clock.fixed(Instant.parse("2026-11-26T01:00:00Z"), ZoneOffset.UTC)), publisher);
+
+        service.update(1L, new PetProfilePatch("보리", null, null, null, new BigDecimal("3.4")));
+        verify(repo, never()).flush();
+        verify(publisher, never()).publishEvent(any(Object.class));
+
+        service.update(1L, new PetProfilePatch(null, LocalDate.of(2023, 6, 1), null, null, null));
+        service.update(1L, new PetProfilePatch(null, null, null, 4L, null));
+        InOrder order = inOrder(repo, publisher);
+        order.verify(repo).flush();
+        order.verify(publisher).publishEvent(new PetProfileChangedEvent(1L));
+        order.verify(repo).flush();
+        order.verify(publisher).publishEvent(new PetProfileChangedEvent(1L));
     }
 
     @Test
