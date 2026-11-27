@@ -78,9 +78,11 @@ public final class RoleAccessRules {
     private RoleAccessRules() {
     }
 
-    /** 로그인 없이 부를 수 있는 것: 로그인, CSRF 쿠키 받기. */
+    /** 로그인 없이 부를 수 있는 것: 로그인, 로그아웃, CSRF 쿠키 받기. */
     public static boolean isPublic(String method, String path) {
         return ("POST".equals(method) && "/api/auth/login".equals(path))
+                // 로그아웃은 이미 만료된 세션에서도 성공으로 끝나야 한다 (#167). CSRF 검사는 그대로 받는다
+                || ("POST".equals(method) && "/api/auth/logout".equals(path))
                 || ("GET".equals(method) && "/api/csrf".equals(path));
     }
 
