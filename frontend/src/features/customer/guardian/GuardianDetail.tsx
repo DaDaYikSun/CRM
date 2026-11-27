@@ -35,6 +35,7 @@ import {
   toggleTag,
   type GuardianFormState,
 } from "./guardianRules";
+import { ContactHistoryTable } from "./ContactHistoryTable";
 import styles from "./GuardianDetail.module.css";
 
 function toForm(d: Detail): GuardianFormState {
@@ -252,6 +253,8 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
           </Notice>
         )}
       </section>
+
+      <ContactHistoryTable guardianId={guardianId} />
 
       {toast && <Toast message={toast} onClose={closeToast} />}
     </div>
