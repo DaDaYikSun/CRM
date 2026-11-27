@@ -66,6 +66,7 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
   const [revertError, setRevertError] = useState<string | null>(null);
   // 폼 하나에 저장 키 하나 (K15). 성공하면 지운다
   const saveKey = useRef<string | null>(null);
+  const saveBody = useRef<string | null>(null);
   const revertKey = useRef<string | null>(null);
 
   const load = useCallback(() => {
@@ -107,7 +108,12 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
     }
     setSaving(true);
     setSaveError(null);
-    saveKey.current ??= newIdempotencyKey();
+    // 응답을 잃은 뒤 내용을 고쳐 다시 보내면 옛 응답이 돌아오지 않게, 본문이 바뀌면 키를 새로 만든다
+    const body = JSON.stringify(patch);
+    if (saveKey.current === null || saveBody.current !== body) {
+      saveKey.current = newIdempotencyKey();
+      saveBody.current = body;
+    }
     try {
       setDetail(await updateGuardian(guardianId, patch, { idempotencyKey: saveKey.current }));
       saveKey.current = null;

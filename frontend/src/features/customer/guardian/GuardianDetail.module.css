@@ -91,7 +91,7 @@
 }
 
 .petRainbow {
-  background: var(--bg-muted, #f2f2f2);
+  background: var(--bg-subtle);
   color: var(--text-muted);
 }
 

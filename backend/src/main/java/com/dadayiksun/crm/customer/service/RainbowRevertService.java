@@ -45,12 +45,15 @@ public class RainbowRevertService {
 
     @Transactional
     public RainbowRevertResponse revert(Long petId) {
-        Pet pet = pets.findById(petId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
+        // 같은 집 아이를 먼저 잠근 뒤 그 상태로 판단한다 (두 관리자가 같은 집의 다른 아이를 동시에 되돌려도 어긋나지 않게)
+        Long guardianId = pets.findGuardianId(petId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
+        List<Pet> household = pets.lockByGuardianId(guardianId);
+        Pet pet = household.stream().filter(p -> p.getPetId().equals(petId)).findFirst()
+                .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         if (!pet.isRainbow()) {
             return new RainbowRevertResponse(List.of());
         }
         LocalDate today = clock.today();
-        List<Pet> household = pets.findByGuardianIdOrderByPetIdAsc(pet.getGuardianId());
 
         Pet remaining = null;
         LocalDate remainingUntil = null;

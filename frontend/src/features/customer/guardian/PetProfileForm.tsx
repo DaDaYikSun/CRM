@@ -39,6 +39,7 @@ export function PetProfileForm({
 }) {
   const [name, setName] = useState(pet.name);
   const [birthDate, setBirthDate] = useState(pet.birthDate);
+  const [birthTouched, setBirthTouched] = useState(false);
   const [breedId, setBreedId] = useState(String(pet.breedId));
   const [coatTypeId, setCoatTypeId] = useState(String(pet.coatTypeId));
   const [weight, setWeight] = useState(pet.weightKg === null ? "" : String(pet.weightKg));
@@ -48,6 +49,7 @@ export function PetProfileForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const key = useRef<string | null>(null);
+  const keyBody = useRef<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchBreeds(), fetchCoatTypes()])
@@ -69,7 +71,8 @@ export function PetProfileForm({
     if (errors.name || errors.weight) return;
     const patch: PetProfilePatch = {};
     if (name.trim() !== pet.name) patch.name = name.trim();
-    if (birthDate && birthDate !== pet.birthDate) patch.birthDate = birthDate;
+    // 같은 날짜라도 직접 입력했으면 보낸다: 서버가 '추정' 표시를 뗀다 (실제 생년월일 확인)
+    if (birthDate && (birthDate !== pet.birthDate || birthTouched)) patch.birthDate = birthDate;
     if (Number(breedId) !== pet.breedId) patch.breedId = Number(breedId);
     if (Number(coatTypeId) !== pet.coatTypeId) patch.coatTypeId = Number(coatTypeId);
     if (typeof weightValue === "number" && weightValue !== pet.weightKg) patch.weightKg = weightValue;
@@ -79,7 +82,12 @@ export function PetProfileForm({
     }
     setSaving(true);
     setError(null);
-    key.current ??= newIdempotencyKey();
+    // 응답을 잃은 뒤 내용을 고쳐 다시 보내면 옛 응답이 돌아오지 않게, 본문이 바뀌면 키를 새로 만든다
+    const body = JSON.stringify(patch);
+    if (key.current === null || keyBody.current !== body) {
+      key.current = newIdempotencyKey();
+      keyBody.current = body;
+    }
     try {
       await updatePetProfile(pet.petId, patch, { idempotencyKey: key.current });
       key.current = null;
@@ -96,7 +104,7 @@ export function PetProfileForm({
       <p>{GUARDIAN_COPY.petProfileNote}</p>
       <TextField label="아이 이름" required value={name} maxLength={30} onChange={setName}
         error={showErrors ? errors.name : undefined} />
-      <TextField label="생년월일" type="date" value={birthDate} onChange={setBirthDate} />
+      <TextField label="생년월일" type="date" value={birthDate} onChange={(v) => { setBirthDate(v); setBirthTouched(true); }} />
       <Select label="품종" required value={breedId} onChange={setBreedId}
         options={breeds.map((b) => ({ value: String(b.breedId), label: b.name }))} />
       <Select label="털 유형" required value={coatTypeId} onChange={setCoatTypeId}

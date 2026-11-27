@@ -58,13 +58,15 @@ class PetProfileAndRevertTest {
         KstClock clock = new KstClock(Clock.fixed(Instant.parse("2026-11-26T01:00:00Z"), ZoneOffset.UTC));
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.queryForObject(any(String.class), eq(String.class), anyLong())).thenReturn("이름");
-        profile = new PetProfileService(repo, options, jdbc, events::add);
+        profile = new PetProfileService(repo, options, jdbc, clock, events::add);
         revert = new RainbowRevertService(repo, log, clock, events::add);
         pets = new java.util.LinkedHashMap<>();
         when(options.isSelectableBreed(anyLong())).thenReturn(true);
         when(options.isSelectableCoatType(anyLong())).thenReturn(true);
         when(repo.findById(anyLong())).thenAnswer(i -> Optional.ofNullable(pets.get(i.<Long>getArgument(0))));
-        when(repo.findByGuardianIdOrderByPetIdAsc(7L)).thenAnswer(i -> List.copyOf(pets.values()));
+        when(repo.findGuardianId(anyLong()))
+                .thenAnswer(i -> pets.containsKey(i.<Long>getArgument(0)) ? Optional.of(7L) : Optional.empty());
+        when(repo.lockByGuardianId(7L)).thenAnswer(i -> List.copyOf(pets.values()));
     }
 
     private Pet pet(long id, boolean rainbow, LocalDate holdUntil, Long holdBy) {
@@ -89,6 +91,18 @@ class PetProfileAndRevertTest {
 
         assertThat(p.isBirthDateEstimated()).isFalse();
         assertThat(events).containsExactly(new PetProfileChangedEvent(1L));
+    }
+
+    @Test
+    void 미래_생년월일은_400이고_오늘은_받는다() {
+        Pet p = pet(1, false, null, null);
+
+        assertThatThrownBy(() -> profile.update(1L, new PetProfilePatch(null, TODAY.plusDays(1), null, null, null)))
+                .isInstanceOf(ApiException.class);
+        assertThat(p.getBirthDate()).isEqualTo(LocalDate.of(2023, 5, 2));
+
+        profile.update(1L, new PetProfilePatch(null, TODAY, null, null, null));
+        assertThat(p.getBirthDate()).isEqualTo(TODAY);
     }
 
     @Test

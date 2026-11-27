@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dadayiksun.crm.common.error.ApiException;
 import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.common.response.ErrorResponse;
+import com.dadayiksun.crm.common.time.KstClock;
 import com.dadayiksun.crm.customer.domain.Pet;
 import com.dadayiksun.crm.customer.domain.PetProfileChangedEvent;
 import com.dadayiksun.crm.customer.dto.PetProfilePatch;
@@ -34,13 +35,15 @@ public class PetProfileService {
     private final PetRepository pets;
     private final SelectableOptionChecker options;
     private final JdbcTemplate jdbc;
+    private final KstClock clock;
     private final ApplicationEventPublisher events;
 
-    public PetProfileService(PetRepository pets, SelectableOptionChecker options, JdbcTemplate jdbc,
+    public PetProfileService(PetRepository pets, SelectableOptionChecker options, JdbcTemplate jdbc, KstClock clock,
             ApplicationEventPublisher events) {
         this.pets = pets;
         this.options = options;
         this.jdbc = jdbc;
+        this.clock = clock;
         this.events = events;
     }
 
@@ -63,6 +66,10 @@ public class PetProfileService {
         boolean coatChanged = patch.coatTypeId() != null && !patch.coatTypeId().equals(pet.getCoatTypeId());
         if (coatChanged && !options.isSelectableCoatType(patch.coatTypeId())) {
             errors.add(invalid("coatTypeId"));
+        }
+        // 미래 생년월일은 예정일을 몇 년 뒤로 밀어 연락 대상에서 조용히 빠지게 한다 (POL-REG-004)
+        if (patch.birthDate() != null && patch.birthDate().isAfter(clock.today())) {
+            errors.add(invalid("birthDate"));
         }
         BigDecimal w = patch.weightKg();
         if (w != null && (w.signum() <= 0 || w.compareTo(WEIGHT_MAX) > 0 || w.stripTrailingZeros().scale() > 1)) {
