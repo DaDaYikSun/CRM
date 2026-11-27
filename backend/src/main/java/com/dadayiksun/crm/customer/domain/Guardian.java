@@ -43,11 +43,11 @@ public class Guardian extends AuditEntity {
     private String subPhone;
 
     /** PHONE 또는 SMS, 없으면 null. */
-    @Column(name = "preferred_contact", length = 5)
+    @Column(name = "preferred_contact", length = 5, columnDefinition = "enum('PHONE','SMS')")
     private String preferredContact;
 
     /** OK 또는 WRONG(번호 오류). 번호를 바꾸면 OK로 돌아간다 (POL-REG-008). */
-    @Column(name = "phone_status", nullable = false, length = 5)
+    @Column(name = "phone_status", nullable = false, length = 5, columnDefinition = "enum('OK','WRONG')")
     private String phoneStatus = "OK";
 
     /** 번호 마지막 확인일. 등록할 때 한국 날짜 오늘 (DB 설계 4-2, POL-REG-008). */
