@@ -86,3 +86,19 @@ export function getContactHistory(guardianId: number, page: number): Promise<Pag
 export function saveContact(input: SaveContactInput, idempotencyKey: string): Promise<SaveContactResult> {
   return api.post<SaveContactResult>("/api/contacts", input, { idempotencyKey });
 }
+
+/** [문자 보내기] 모의 발송 (#174, API 설계 3-6). sent = false면 기록은 남았고 문자만 못 보냄 (K21) */
+export interface SendSmsResult {
+  contactGroupId: string;
+  body: string;
+  template: "VACCINE" | "GROOMING";
+  sent: boolean;
+}
+
+/** 문구 종류는 서버가 항목으로 정한다 (접종이 있으면 접종, T4) */
+export function sendMockSms(
+  input: { guardianId: number; items: { scheduleId: number }[] },
+  idempotencyKey: string,
+): Promise<SendSmsResult> {
+  return api.post<SendSmsResult>("/api/contacts/sms", input, { idempotencyKey });
+}

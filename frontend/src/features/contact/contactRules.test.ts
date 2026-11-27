@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PanelItem } from "@/lib/api/contact";
-import { canSave, defaultNextContactDate, formatPhone, isSecondDayNoAnswer, savedToast, secondDayCopy } from "./contactRules";
+import { canSave, defaultNextContactDate, formatPhone, isNightKst, isSecondDayNoAnswer, savedToast, secondDayCopy } from "./contactRules";
 
 const TODAY = "2026-11-25";
 
@@ -74,5 +74,18 @@ describe("savedToast (정책 4-2, #154)", () => {
     expect(savedToast({ closedScheduleIds: [101], mockSms: { sent: false, template: "VACCINE" } })).toBe(
       "연락 결과는 저장했습니다. 안내 문자는 보내지 못했습니다. 필요하면 보호자에게 직접 연락해 주세요.",
     );
+  });
+});
+
+describe("isNightKst (POL-CNT-007, 한국 시간 21시~다음 날 8시)", () => {
+  const kst = (hhmm: string) => new Date(`2026-11-25T${hhmm}:00+09:00`);
+  it("20:59와 08:00은 낮, 21:00과 07:59는 밤", () => {
+    expect(isNightKst(kst("20:59"))).toBe(false);
+    expect(isNightKst(kst("21:00"))).toBe(true);
+    expect(isNightKst(kst("07:59"))).toBe(true);
+    expect(isNightKst(kst("08:00"))).toBe(false);
+  });
+  it("자정(00:00)은 밤", () => {
+    expect(isNightKst(kst("00:00"))).toBe(true);
   });
 });

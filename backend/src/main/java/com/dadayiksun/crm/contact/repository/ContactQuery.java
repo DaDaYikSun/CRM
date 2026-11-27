@@ -58,11 +58,13 @@ public interface ContactQuery {
      * @param noAnswerCount   저장 전 그 주기의 연속 '전화 안 받음' 횟수 (schedule)
      * @param prevContactState · prevNextContactDate 저장 전 그 주기의 연락 상태 · 다음 연락 예정일 (schedule)
      * @param vaccineTypeName 접종이면 접종 종류 이름, 미용이면 null
+     * @param majorVaccine    주요 접종(vaccine_type.is_major)인지. 2일차 문자 문구 고르기에 쓴다 (#174)
      */
     record GroupItem(long scheduleId, long petId, String petName, long guardianId, String phone, boolean smsAgreed,
                      String result, LocalDate nextContactDate, int noAnswerCount, String prevContactState,
                      LocalDate prevNextContactDate, String serviceType,
-                     String vaccineTypeName, LocalDate dueDate, LocalDateTime contactedAt, long createdBy) {
+                     String vaccineTypeName, boolean majorVaccine, LocalDate dueDate, LocalDateTime contactedAt,
+                     long createdBy) {
     }
 
     record PanelItem(long petId, String petName, ContactPanelResponse.Item item) {
@@ -75,5 +77,17 @@ public interface ContactQuery {
     }
 
     record OpenSchedule(long scheduleId, long petId, long guardianId, boolean petActive) {
+    }
+
+    /** 진행 중(OPEN)인 예정만 문자 문구 값과 함께 돌려준다 ([문자 보내기], #174). 없거나 끝난 예정은 빠진다 */
+    List<SmsTarget> smsTargets(Collection<Long> scheduleIds);
+
+    /**
+     * 문자 한 통을 채우고 기록할 값 (모의 발송, {@code MockSmsWriter}). vaccineTypeName은 미용이면 null,
+     * majorVaccine은 주요 접종(vaccine_type.is_major)인지
+     */
+    record SmsTarget(long scheduleId, long petId, String petName, long guardianId, String phone, boolean smsAgreed,
+                     boolean petActive, String serviceType, String vaccineTypeName, boolean majorVaccine,
+                     LocalDate dueDate) {
     }
 }

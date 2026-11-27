@@ -97,6 +97,13 @@ public final class ContactFakes {
         public List<OpenSchedule> openSchedules(Collection<Long> scheduleIds) {
             return open.stream().filter(s -> scheduleIds.contains(s.scheduleId())).toList();
         }
+
+        public final List<SmsTarget> smsTargets = new ArrayList<>();
+
+        @Override
+        public List<SmsTarget> smsTargets(Collection<Long> scheduleIds) {
+            return smsTargets.stream().filter(s -> scheduleIds.contains(s.scheduleId())).toList();
+        }
     }
 
     public static class Logs implements ContactLogRepository {
@@ -126,7 +133,7 @@ public final class ContactFakes {
         public final List<String> applied = new ArrayList<>();
 
         public FollowUp() {
-            super(null, null, null, null, null);
+            super(null, null, null, null);
         }
 
         @Override

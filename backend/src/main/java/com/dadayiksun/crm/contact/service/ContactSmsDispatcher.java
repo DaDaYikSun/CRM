@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import com.dadayiksun.crm.contact.dto.SaveContactResponse;
+import com.dadayiksun.crm.contact.dto.SendSmsResponse;
 import com.dadayiksun.crm.contact.sms.SmsSender;
 
 /**
@@ -26,20 +27,26 @@ public class ContactSmsDispatcher {
 
     public SaveContactResponse sendAfterCommit(ContactSaveService.Saved saved) {
         ContactFollowUpService.Outcome outcome = saved.followUp();
-        ContactFollowUpService.PendingSms pending = outcome.pendingSms();
-        SaveContactResponse.MockSms mockSms = null;
-        if (pending != null) {
-            boolean sent;
-            try {
-                sms.send(pending.phone(), pending.body());
-                sent = true;
-            } catch (RuntimeException e) {
-                log.warn("2일차 안내 문자를 보내지 못했다 (연락 결과는 저장됨): {}", e.toString());
-                sent = false;
-            }
-            mockSms = new SaveContactResponse.MockSms(sent, pending.template());
-        }
+        MockSmsWriter.PendingSms pending = outcome.pendingSms();
+        SaveContactResponse.MockSms mockSms = pending == null ? null
+                : new SaveContactResponse.MockSms(send(pending), pending.template());
         return new SaveContactResponse(saved.contactGroupId(),
                 new SaveContactResponse.FollowUp(outcome.closedScheduleIds(), mockSms));
+    }
+
+    /** [문자 보내기] (#174). 실패하면 기록은 그대로 두고 sent = false (화면은 다시 시도 안내) */
+    public SendSmsResponse sendAfterCommit(ContactSmsService.Recorded recorded) {
+        MockSmsWriter.PendingSms pending = recorded.sms();
+        return new SendSmsResponse(recorded.contactGroupId(), pending.body(), pending.template(), send(pending));
+    }
+
+    private boolean send(MockSmsWriter.PendingSms pending) {
+        try {
+            sms.send(pending.phone(), pending.body());
+            return true;
+        } catch (RuntimeException e) {
+            log.warn("안내 문자를 보내지 못했다 (기록은 저장됨): {}", e.toString());
+            return false;
+        }
     }
 }

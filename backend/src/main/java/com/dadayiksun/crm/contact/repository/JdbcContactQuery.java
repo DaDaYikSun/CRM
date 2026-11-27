@@ -140,7 +140,7 @@ public class JdbcContactQuery implements ContactQuery {
         return jdbc.query("""
                 SELECT c.schedule_id, c.pet_id, p.name AS pet_name, c.guardian_id, g.phone, g.sms_agreed, c.result,
                        c.next_contact_date, s.no_answer_count, s.contact_state, s.next_contact_date AS prev_next_contact_date,
-                       s.service_type, vt.name AS vaccine_type_name, s.due_date,
+                       s.service_type, vt.name AS vaccine_type_name, COALESCE(vt.is_major, 0) AS is_major, s.due_date,
                        c.contacted_at, c.created_by
                   FROM contact_log c
                   JOIN schedule s ON s.schedule_id = c.schedule_id
@@ -156,7 +156,7 @@ public class JdbcContactQuery implements ContactQuery {
                 rs.getDate("next_contact_date") == null ? null : rs.getDate("next_contact_date").toLocalDate(),
                 rs.getInt("no_answer_count"), rs.getString("contact_state"),
                 rs.getDate("prev_next_contact_date") == null ? null : rs.getDate("prev_next_contact_date").toLocalDate(),
-                rs.getString("service_type"), rs.getString("vaccine_type_name"),
+                rs.getString("service_type"), rs.getString("vaccine_type_name"), rs.getBoolean("is_major"),
                 rs.getDate("due_date").toLocalDate(), rs.getTimestamp("contacted_at").toLocalDateTime(),
                 rs.getLong("created_by")));
     }
@@ -196,5 +196,26 @@ public class JdbcContactQuery implements ContactQuery {
                  WHERE s.schedule_id IN (:ids) AND s.status = 'OPEN'
                 """, Map.of("ids", scheduleIds), (rs, i) -> new OpenSchedule(rs.getLong("schedule_id"),
                 rs.getLong("pet_id"), rs.getLong("guardian_id"), "ACTIVE".equals(rs.getString("pet_status"))));
+    }
+
+    @Override
+    public List<SmsTarget> smsTargets(Collection<Long> scheduleIds) {
+        if (scheduleIds.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.query("""
+                SELECT s.schedule_id, s.pet_id, p.name AS pet_name, p.guardian_id, g.phone, g.sms_agreed,
+                       p.status AS pet_status, s.service_type, vt.name AS vaccine_type_name,
+                       COALESCE(vt.is_major, 0) AS is_major, s.due_date
+                  FROM schedule s
+                  JOIN pet p ON p.pet_id = s.pet_id
+                  JOIN guardian g ON g.guardian_id = p.guardian_id
+                  LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
+                 WHERE s.schedule_id IN (:ids) AND s.status = 'OPEN'
+                """, Map.of("ids", scheduleIds), (rs, i) -> new SmsTarget(rs.getLong("schedule_id"),
+                rs.getLong("pet_id"), rs.getString("pet_name"), rs.getLong("guardian_id"), rs.getString("phone"),
+                rs.getBoolean("sms_agreed"), "ACTIVE".equals(rs.getString("pet_status")),
+                rs.getString("service_type"), rs.getString("vaccine_type_name"), rs.getBoolean("is_major"),
+                rs.getDate("due_date").toLocalDate()));
     }
 }

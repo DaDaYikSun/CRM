@@ -12,6 +12,7 @@ import {
   getContactHistory,
   getContactPanel,
   saveContact,
+  sendMockSms,
   type ContactHistoryItem,
   type ContactMethod,
   type ContactPanel as Panel,
@@ -25,6 +26,7 @@ import {
   COPY,
   defaultNextContactDate,
   formatPhone,
+  isNightKst,
   isSecondDayNoAnswer,
   MEMO_MAX,
   isSecondDayItem,
@@ -37,7 +39,7 @@ import { ResultButtons } from "./ResultButtons";
 import styles from "./contact.module.css";
 
 // CMP ContactPanel (S-04, FR-CNT-001 · 002, 화면 설계 SCR-S04). 목록은 그대로 두고 오른쪽에 연다.
-// 입력 칸은 결과와 상관없이 늘 보인다 (#153 결정). 후속 처리 결과 안내 · 문자 버튼 · 같은 집 일괄 적용은 #154 · 초안 24 · 초안 29.
+// 입력 칸은 결과와 상관없이 늘 보인다 (#153 결정). 후속 처리 결과 안내는 #154, [문자 보내기]는 #174, 같은 집 일괄 적용은 #179.
 const TAG_LABEL: Record<string, string> = {
   NO_CONTACT: "연락 원치 않음",
   SMS_ONLY: "문자만",
@@ -78,6 +80,11 @@ export function ContactPanel({
   const [toast, setToast] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const dialog = useRef<HTMLDialogElement>(null);
+  // [문자 보내기]는 결과 저장과 따로인 요청이라 키도 따로 (K15)
+  const [smsKey, setSmsKey] = useState(newIdempotencyKey);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const nightDialog = useRef<HTMLDialogElement>(null);
 
   // 보호자가 바뀌면 부르는 쪽이 key={guardianId}로 새로 만든다 (targets/page.tsx). 그래서 입력을 따로 비우지 않는다.
   useEffect(() => {
@@ -139,6 +146,31 @@ export function ContactPanel({
       return;
     }
     void save();
+  }
+
+  // 밤 9시~아침 8시면 경고 창을 먼저 띄우고, 보낼 수는 있다 (POL-CNT-007). 누른 순간의 한국 시간으로 판단한다
+  function requestSms() {
+    if (isNightKst()) nightDialog.current?.showModal();
+    else void sendSms();
+  }
+
+  // 패널의 예정 항목 전부로 문자 한 통. 문구 종류는 서버가 정한다 (#174 결정)
+  async function sendSms() {
+    nightDialog.current?.close();
+    setSmsSending(true);
+    setSmsError(null);
+    try {
+      const res = await sendMockSms({ guardianId, items: items.map((i) => ({ scheduleId: i.scheduleId })) }, smsKey);
+      // 못 보냈어도 기록은 남았다. 다시 누르면 새 기록이라 새 키 (K21)
+      setToast(res.sent ? COPY.smsSent : COPY.smsFailed);
+      setSmsKey(newIdempotencyKey());
+      setReload((n) => n + 1);
+      onSaved();
+    } catch (e) {
+      setSmsError(e instanceof ApiError && e.status >= 400 && e.status < 500 ? e.message : SAVE_FAILED_MESSAGE);
+    } finally {
+      setSmsSending(false);
+    }
   }
 
   async function save() {
@@ -293,8 +325,25 @@ export function ContactPanel({
               <Button type="submit" loading={saving} disabled={!canSave(items, results, memo)}>
                 연락 결과 저장
               </Button>
+
+              {/* 수신 동의가 없으면 꺼지고 안내는 위 연락 방법 아래에 있다 (SCR-S04-03). 서버도 409로 막는다 */}
+              <Button variant="secondary" loading={smsSending} disabled={!g.smsAgreed} onClick={requestSms}>
+                문자 보내기
+              </Button>
+              <p className={styles.hint}>{COPY.smsNote}</p>
+              {smsError && <Notice tone="danger">{smsError}</Notice>}
             </form>
           )}
+
+          <dialog ref={nightDialog} className={styles.dialog} aria-labelledby="night-sms-title">
+            <p id="night-sms-title">{COPY.nightWarning}</p>
+            <div className={styles.dialogActions}>
+              <Button variant="secondary" onClick={() => nightDialog.current?.close()}>
+                취소
+              </Button>
+              <Button onClick={() => void sendSms()}>문자 보내기</Button>
+            </div>
+          </dialog>
 
           <dialog ref={dialog} className={styles.dialog} aria-labelledby="second-day-title">
             {secondDay && (
