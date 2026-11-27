@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import com.dadayiksun.crm.common.error.ApiException;
 import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.contact.ContactFakes;
+import com.dadayiksun.crm.contact.dto.ContactPanelResponse;
 import com.dadayiksun.crm.contact.dto.SaveContactRequest;
 import com.dadayiksun.crm.contact.dto.SaveContactResponse;
 import com.dadayiksun.crm.contact.repository.ContactLogRepository.Row;
@@ -76,6 +77,33 @@ class ContactSaveServiceTest {
         service.save(request(null, LocalDate.of(2026, 11, 30), item(101, "NO_ANSWER")), STAFF);
 
         assertThat(logs.rows.get(0).nextContactDate()).isEqualTo(LocalDate.of(2026, 11, 30));
+    }
+
+    private void guardianSmsAgreed(boolean agreed) {
+        query.guardian = new ContactPanelResponse.Guardian(GUARDIAN, "김보호", "01012345678", null, null, List.of(),
+                null, agreed, "OK");
+    }
+
+    private static SaveContactRequest smsRequest() {
+        return new SaveContactRequest(GUARDIAN, "SMS", null, null, null, List.of(item(101, "BOOKED")), false);
+    }
+
+    @Test
+    void 수신_동의가_없으면_문자_연락은_409이고_저장하지_않는다() {
+        guardianSmsAgreed(false);
+
+        assertThatThrownBy(() -> service.save(smsRequest(), STAFF))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo(ErrorCode.SMS_NOT_AGREED));
+        assertThat(logs.rows).isEmpty();
+    }
+
+    @Test
+    void 수신_동의가_있으면_문자_연락을_저장한다() {
+        guardianSmsAgreed(true);
+
+        service.save(smsRequest(), STAFF);
+
+        assertThat(logs.rows).extracting(Row::method).containsExactly("SMS");
     }
 
     @Test

@@ -112,6 +112,11 @@ public class ContactSaveService {
         if (open.values().stream().anyMatch(s -> !s.petActive())) {
             throw new ApiException(ErrorCode.PET_RAINBOW);
         }
+        // 수신 동의가 없으면 문자 연락 기록도 남기지 않는다 (POL-REG-010, 화면 설계 SCR-S04-03). 화면은 버튼을 끄기만 한다
+        if ("SMS".equals(req.method())
+                && !query.guardian(req.guardianId()).map(g -> g.smsAgreed()).orElse(false)) {
+            throw new ApiException(ErrorCode.SMS_NOT_AGREED);
+        }
 
         String groupId = UUID.randomUUID().toString();
         LocalDate retryDefault = today.plusDays(NO_ANSWER_RETRY_DAYS);
