@@ -1,0 +1,103 @@
+/* B-02 주기 규칙 · B-03 기준값 (#175). 표 모양은 B-01 직원 관리와 같다 */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-20);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-28);
+  font-weight: var(--font-bold);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-18);
+  font-weight: var(--font-bold);
+}
+
+.guide {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-14);
+}
+
+.card {
+  overflow-x: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-18);
+  box-shadow: var(--shadow-card);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-14);
+}
+
+.table th,
+.table td {
+  padding: var(--spacing-12) var(--spacing-16);
+  border-bottom: 1px solid var(--border-default);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  color: var(--text-muted);
+  font-size: var(--font-size-13);
+  font-weight: var(--font-medium);
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.typeRow td {
+  background: var(--bg-subtle, transparent);
+  font-weight: var(--font-medium);
+}
+
+.number {
+  width: 6rem;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--spacing-8);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-10);
+  background: var(--bg-surface);
+  font: inherit;
+}
+
+.number[aria-invalid="true"] {
+  border-color: var(--color-danger, #d93025);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fields {
+  display: grid;
+  gap: var(--spacing-16);
+  max-width: 32rem;
+  padding: var(--spacing-20);
+}
+
+/* 규칙 근거 메모 (vaccine_rule.note). 표가 넓어지지 않게 줄을 바꾼다 */
+.note {
+  display: block;
+  max-width: 16rem;
+  margin-top: var(--spacing-4, 4px);
+  color: var(--text-muted);
+  font-size: var(--font-size-12, 12px);
+  white-space: normal;
+}

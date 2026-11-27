@@ -139,9 +139,11 @@ public class CycleService {
         plan(pet, true, null);
     }
 
-    /** 규칙 저장 뒤: 쓰는 아이 모두 다시 계산 (#144 남은 질문 2: 저장 요청 안에서 한다, 400마리 규모) */
-    public void recalculateByRule() {
-        source.activePetIds().forEach(this::recalculatePet);
+    /** 규칙 저장 뒤: 쓰는 아이 모두 다시 계산하고 그 수를 돌려준다 (#144 남은 질문 2: 저장 요청 안에서 한다, 400마리 규모) */
+    public int recalculateByRule() {
+        List<Long> petIds = source.activePetIds();
+        petIds.forEach(this::recalculatePet);
+        return petIds.size();
     }
 
     /**
