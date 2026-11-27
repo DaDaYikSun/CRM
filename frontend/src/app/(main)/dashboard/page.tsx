@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { ApiError, LOAD_FAILED_MESSAGE } from "@/lib/api/client";
@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<TargetSummary | null>(null);
   const [error, setError] = useState<{ message: string; retry: boolean } | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let stale = false;
@@ -43,7 +44,9 @@ export default function DashboardPage() {
 
   return (
     <section>
-      <h1>대시보드</h1>
+      <h1 ref={heading} tabIndex={-1}>
+        대시보드
+      </h1>
       <p className={styles.guide}>{GUIDE}</p>
       <p className={styles.date}>{todayLabel.format(new Date())}</p>
 
@@ -52,7 +55,14 @@ export default function DashboardPage() {
           tone="danger"
           actions={
             error.retry && (
-              <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  // 누르면 이 버튼이 사라지므로 포커스를 제목으로 옮겨 잃지 않게 한다
+                  heading.current?.focus();
+                  setAttempt((n) => n + 1);
+                }}
+              >
                 다시 시도
               </Button>
             )
