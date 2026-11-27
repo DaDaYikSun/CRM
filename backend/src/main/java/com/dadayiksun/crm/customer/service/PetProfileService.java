@@ -96,6 +96,8 @@ public class PetProfileService {
             pet.changeWeight(w);
         }
         if (birthChanged || breedChanged || coatChanged) {
+            // cycle은 JDBC로 생년월일 · 털 유형을 읽는다. 저장 전이면 옛 값으로 예정일을 다시 계산한다 (#235 실제 DB 확인)
+            pets.flush();
             events.publishEvent(new PetProfileChangedEvent(petId));
         }
         return toResponse(pet);
