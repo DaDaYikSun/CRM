@@ -15,4 +15,7 @@ public interface PetRepository extends JpaRepository<Pet, Long> {
     /** 보호자별 아이 수 (같은 번호 경고의 '아이 {N}마리', 정책 4-2). 결과 행: [guardianId, count] */
     @Query("select p.guardianId, count(p) from Pet p where p.guardianId in :guardianIds group by p.guardianId")
     List<Object[]> countByGuardianIds(@Param("guardianIds") Collection<Long> guardianIds);
+
+    /** 같은 집 아이 (S-06 카드 · 되돌리기). */
+    List<Pet> findByGuardianIdOrderByPetIdAsc(Long guardianId);
 }

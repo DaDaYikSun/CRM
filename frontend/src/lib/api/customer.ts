@@ -88,3 +88,91 @@ export function addPetToGuardian(
 ): Promise<{ petId: number }> {
   return api.post(`/api/guardians/${guardianId}/pets`, { pet }, options);
 }
+
+// ---- #151 보호자 상세 · 수정 · 아이 프로필 수정 · 무지개다리 되돌리기 (C10, API 설계 3-3) ----
+
+export type GuardianTagCode = "NO_CONTACT" | "SMS_ONLY" | "SENSITIVE" | "CONTACT_TIME";
+
+export interface NextSchedule {
+  serviceType: "VACCINE" | "GROOMING";
+  vaccineTypeName: string | null;
+  dueDate: string;
+  missed: boolean;
+}
+
+export interface GuardianDetailPet {
+  petId: number;
+  name: string;
+  status: "ACTIVE" | "RAINBOW";
+  breedName: string;
+  coatTypeName: string;
+  birthDate: string;
+  birthDateEstimated: boolean;
+  contactHoldUntil: string | null;
+  nextSchedule: NextSchedule | null;
+}
+
+export interface GuardianDetail {
+  guardian: {
+    guardianId: number;
+    name: string;
+    /** 숫자만 저장된 전체 번호 (POL-DATA-002) */
+    phone: string;
+    subPhone: string | null;
+    preferredContact: "PHONE" | "SMS" | null;
+    phoneStatus: "OK" | "WRONG";
+    phoneCheckedAt: string;
+    privacyAgreed: boolean;
+    smsAgreed: boolean;
+    tags: GuardianTagCode[];
+    contactTimeNote: string | null;
+    createdAt: string;
+    createdByName: string | null;
+  };
+  pets: GuardianDetailPet[];
+}
+
+/** 바꿀 칸만 보낸다. 칸을 빼면 그대로, null이면 비운다 (API 설계 3-3) */
+export interface GuardianPatch {
+  name?: string;
+  phone?: string;
+  subPhone?: string | null;
+  preferredContact?: "PHONE" | "SMS" | null;
+  tags?: GuardianTagCode[];
+  contactTimeNote?: string | null;
+}
+
+/** 바꿀 칸만 보낸다 (체중은 지울 수 없다) */
+export interface PetProfilePatch {
+  name?: string;
+  birthDate?: string;
+  breedId?: number;
+  coatTypeId?: number;
+  weightKg?: number;
+}
+
+export function fetchGuardianDetail(guardianId: number): Promise<GuardianDetail> {
+  return api.get<GuardianDetail>(`/api/guardians/${guardianId}`);
+}
+
+export function updateGuardian(
+  guardianId: number,
+  patch: GuardianPatch,
+  options: SaveOptions,
+): Promise<GuardianDetail> {
+  return api.patch<GuardianDetail>(`/api/guardians/${guardianId}`, patch, options);
+}
+
+export function updatePetProfile(petId: number, patch: PetProfilePatch, options: SaveOptions): Promise<unknown> {
+  return api.patch(`/api/pets/${petId}`, patch, options);
+}
+
+/** 관리자만 (서버가 막는다, POL-END-004) */
+export function revertRainbow(petId: number, options: SaveOptions): Promise<{ releasedPetIds: number[] }> {
+  return api.post(`/api/pets/${petId}/rainbow-revert`, undefined, options);
+}
+
+/** C3 현재 직원 (API 설계 3-1). #143 전에는 없을 수 있다 */
+export function fetchCurrentRole(): Promise<{ role: "ADMIN" | "DESK" | "GROOMER" }> {
+  return api.get<{ role: "ADMIN" | "DESK" | "GROOMER" }>("/api/auth/me");
+}
