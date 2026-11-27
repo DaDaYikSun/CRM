@@ -80,7 +80,9 @@ export function SearchBox() {
       {show && (
         <div className={styles.dropdown} onClick={() => setOpen(false)}>
           {failed ? (
-            <p className={styles.error}>{LOAD_FAILED_MESSAGE}</p>
+            <p role="alert" className={styles.error}>
+              {LOAD_FAILED_MESSAGE}
+            </p>
           ) : (
             items.map((it) => <SearchResultRow key={it.petId} item={it} compact />)
           )}
