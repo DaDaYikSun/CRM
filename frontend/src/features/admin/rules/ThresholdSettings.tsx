@@ -23,6 +23,7 @@ export function ThresholdSettings() {
   const [toast, setToast] = useState<string | null>(null);
   const { save, saving, failure: saveFailure } = useSave();
 
+  // 저장 중에는 칸을 잠근다: 저장 뒤 다시 불러온 값이 그 사이 입력을 덮어쓰지 않게 (PR #246 리뷰)
   useEffect(() => {
     if (!data) return;
     setMiss(toText(data.missThresholdDays));
@@ -68,6 +69,7 @@ export function ThresholdSettings() {
             required
             value={miss}
             onChange={setMiss}
+            disabled={saving}
             error={missError}
             hint={RULE_COPY.missGuide}
           />
@@ -78,6 +80,7 @@ export function ThresholdSettings() {
             required
             value={hold}
             onChange={setHold}
+            disabled={saving}
             error={holdError}
             hint={RULE_COPY.holdGuide}
           />

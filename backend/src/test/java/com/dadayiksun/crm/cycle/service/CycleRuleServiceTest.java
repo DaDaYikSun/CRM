@@ -110,12 +110,28 @@ class CycleRuleServiceTest {
     }
 
     @Test
-    void 주요_접종만_바꾸면_종류_행만_고치고_다시_계산하지_않는다() {
+    void 주요_접종만_바꿔도_다시_계산한다_선택_접종_판정이_바뀌므로() {
         VaccineTypeRow notMajor = new VaccineTypeRow(1L, "DHPPL", "종합백신", false, true);
-        service.saveVaccineRules(List.of(new VaccineRuleGroup(notMajor, List.of())));
+        assertThat(service.saveVaccineRules(List.of(new VaccineRuleGroup(notMajor, List.of())))).isEqualTo(118);
 
         verify(rules).updateMajor(1L, false, 1L);
-        verify(cycle, never()).recalculateByRule();
+        verify(rules, never()).updateRule(any(), anyLong());
+        verify(cycle).recalculateByRule();
+    }
+
+    @Test
+    void 한_요청에_같은_ID가_두_번이면_VALIDATION_FAILED이고_아무것도_저장하지_않는다() {
+        assertThatThrownBy(() -> service.saveCoatIntervals(List.of(new CoatInterval(1L, "단모", 12), new CoatInterval(1L, "단모", 10))))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo(ErrorCode.VALIDATION_FAILED));
+        assertThatThrownBy(() -> service.saveVaccineRules(List.of(heart(28), heart(25))))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo(ErrorCode.VALIDATION_FAILED));
+        VaccineRuleGroup sameRuleTwice = new VaccineRuleGroup(HEART, List.of(HEART_MONTHLY, HEART_MONTHLY));
+        assertThatThrownBy(() -> service.saveVaccineRules(List.of(sameRuleTwice)))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo(ErrorCode.VALIDATION_FAILED));
+
+        verify(rules, never()).updateGroomWeeks(anyLong(), anyInt(), anyLong());
+        verify(rules, never()).updateRule(any(), anyLong());
+        verify(changeLog, never()).log(any(), any(), any(), any());
     }
 
     @Test

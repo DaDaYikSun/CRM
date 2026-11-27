@@ -1,9 +1,12 @@
 package com.dadayiksun.crm.cycle.service;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +27,9 @@ import com.dadayiksun.crm.cycle.repository.RuleRepository;
  *
  * <ul>
  *   <li>숫자 칸이 비었거나 0 이하면 {@code RULE_VALUE_INVALID}, 하나라도 틀리면 아무것도 저장하지 않는다 (POL-ERR-006)</li>
- *   <li>접종 규칙 · 미용 간격을 바꾸면 아직 오지 않은 예정일만 다시 계산한다 (C4, POL-CYC-005)</li>
+ *   <li>접종 규칙 · 주요 접종 · 미용 간격을 바꾸면 아직 오지 않은 예정일만 다시 계산한다 (C4, POL-CYC-005).
+ *       주요 접종도 넣는 것은 선택 접종 판정(is_major = 0)이 예정을 만들지 정하기 때문 (#204, PR #246 리뷰)</li>
+ *   <li>한 요청에 같은 ID가 두 번 오면 VALIDATION_FAILED. 이력의 '바꾸기 전 값'이 어긋나지 않게 (PR #246 리뷰)</li>
  *   <li>누락 기준은 이제부터 여는 주기에만 쓰여 다시 계산하지 않는다 (POL-MISS-001, DB 4-10)</li>
  *   <li>바뀐 값은 {@code change_log}에 RULE_CHANGE로, 바꾼 직원은 행의 updated_by에도 (FR-ADM-006, POL-DATA-008)</li>
  * </ul>
@@ -56,8 +61,11 @@ public class CycleRuleService {
         return rules.vaccineRules();
     }
 
-    /** @return 다시 계산한 아이 수. 규칙 값이 안 바뀌었으면 0 */
+    /** @return 다시 계산한 아이 수. 바뀐 값이 없으면 0 */
     public int saveVaccineRules(List<VaccineRuleGroup> input) {
+        requireUnique(input.stream().map(g -> g.vaccineType() == null ? null : g.vaccineType().vaccineTypeId()).toList());
+        requireUnique(input.stream().flatMap(g -> g.rules() == null ? Stream.<VaccineRuleRow>empty() : g.rules().stream())
+                .map(VaccineRuleRow::vaccineRuleId).toList());
         Map<Long, VaccineTypeRow> types = new HashMap<>();
         Map<Long, VaccineRuleRow> current = new HashMap<>();
         Map<Long, Long> typeOfRule = new HashMap<>();
@@ -83,23 +91,24 @@ public class CycleRuleService {
         }
 
         long staffId = changeLog.currentStaffId();
-        boolean ruleChanged = false;
+        boolean changed = false;
         for (VaccineRuleGroup g : input) {
             VaccineTypeRow before = types.get(g.vaccineType().vaccineTypeId());
             Boolean major = g.vaccineType().isMajor();
             if (major != null && changeLog.log("VACCINE_TYPE", String.valueOf(before.vaccineTypeId()),
                     Map.of("isMajor", before.isMajor()), Map.of("isMajor", major))) {
                 rules.updateMajor(before.vaccineTypeId(), major, staffId);
+                changed = true;
             }
             for (VaccineRuleRow r : g.rules() == null ? List.<VaccineRuleRow>of() : g.rules()) {
                 if (changeLog.log("VACCINE_RULE", String.valueOf(r.vaccineRuleId()),
                         values(current.get(r.vaccineRuleId())), values(r))) {
                     rules.updateRule(r, staffId);
-                    ruleChanged = true;
+                    changed = true;
                 }
             }
         }
-        return ruleChanged ? cycle.recalculateByRule() : 0;
+        return changed ? cycle.recalculateByRule() : 0;
     }
 
     @Transactional(readOnly = true)
@@ -109,6 +118,7 @@ public class CycleRuleService {
 
     /** @return 다시 계산한 아이 수. 간격이 안 바뀌었으면 0 */
     public int saveCoatIntervals(List<CoatInterval> input) {
+        requireUnique(input.stream().map(CoatInterval::coatTypeId).toList());
         Map<Long, CoatInterval> current = new HashMap<>();
         rules.coatIntervals().forEach(c -> current.put(c.coatTypeId(), c));
         for (CoatInterval c : input) {
@@ -153,6 +163,16 @@ public class CycleRuleService {
         }
         if (r.doseCount() != null) {
             positive(r.doseCount(), MAX_TINYINT);
+        }
+    }
+
+    /** 같은 ID가 두 번 오면 VALIDATION_FAILED (null은 뒤의 NOT_FOUND 검사가 막는다) */
+    static void requireUnique(List<Long> ids) {
+        Set<Long> seen = new HashSet<>();
+        for (Long id : ids) {
+            if (id != null && !seen.add(id)) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, ErrorCode.VALIDATION_FALLBACK_MESSAGE);
+            }
         }
     }
 

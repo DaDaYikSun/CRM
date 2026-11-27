@@ -35,6 +35,9 @@ const RULE_COLUMNS: { field: RuleField; label: string; optional: boolean }[] = [
   { field: "doseCount", label: "횟수(비우면 계속)", optional: true },
 ];
 
+const RULE_ERROR_ID = "rule-settings-rule-error";
+const COAT_ERROR_ID = "rule-settings-coat-error";
+
 // DB 설계 4-7 vaccine_rule.phase
 const PHASE_LABEL: Record<VaccineRuleRow["phase"], string> = {
   PRIMARY: "기초접종",
@@ -52,12 +55,11 @@ function ruleDraft(rule: VaccineRuleRow): RuleDraft {
 }
 
 export function RuleSettings() {
-  const { data, failure, loading, retry } = useQueryWithRetry(
-    () => Promise.all([getVaccineRules(), getCoatIntervals()]),
-    [],
-  );
-  const groups = data?.[0] ?? null;
-  const coats = data?.[1] ?? null;
+  // 두 영역을 따로 불러온다: 한쪽을 저장하고 다시 불러올 때 다른 쪽의 저장하지 않은 입력을 덮어쓰지 않게 (PR #246 리뷰)
+  const ruleQuery = useQueryWithRetry(getVaccineRules, []);
+  const coatQuery = useQueryWithRetry(getCoatIntervals, []);
+  const groups = ruleQuery.data;
+  const coats = coatQuery.data;
 
   const [rules, setRules] = useState<Record<number, RuleDraft>>({});
   const [majors, setMajors] = useState<Record<number, boolean>>({});
@@ -68,15 +70,18 @@ export function RuleSettings() {
   const ruleSave = useSave();
   const coatSave = useSave();
 
-  // 불러온 값(저장 뒤 다시 불러온 값 포함)으로 입력 칸을 채운다
+  // 불러온 값(저장 뒤 다시 불러온 값 포함)으로 그 영역의 입력 칸만 채운다
   useEffect(() => {
-    if (!groups || !coats) return;
+    if (!groups) return;
     setRules(Object.fromEntries(groups.flatMap((g) => g.rules.map((r) => [r.vaccineRuleId, ruleDraft(r)]))));
     setMajors(Object.fromEntries(groups.map((g) => [g.vaccineType.vaccineTypeId, g.vaccineType.isMajor])));
-    setWeeks(Object.fromEntries(coats.map((c) => [c.coatTypeId, toText(c.defaultGroomWeeks)])));
     setRulesTouched(false);
+  }, [groups]);
+  useEffect(() => {
+    if (!coats) return;
+    setWeeks(Object.fromEntries(coats.map((c) => [c.coatTypeId, toText(c.defaultGroomWeeks)])));
     setCoatTouched(false);
-  }, [groups, coats]);
+  }, [coats]);
 
   const changedGroups = useMemo<VaccineRuleGroup[]>(() => {
     if (!groups) return [];
@@ -108,8 +113,12 @@ export function RuleSettings() {
   const changedCoats = useMemo<CoatInterval[]>(
     () =>
       (coats ?? [])
-        .filter((c) => (weeks[c.coatTypeId] ?? "") !== toText(c.defaultGroomWeeks))
-        .map((c) => ({ ...c, defaultGroomWeeks: toInt(weeks[c.coatTypeId]) as number })),
+        .flatMap((c) => {
+          const draft = weeks[c.coatTypeId];
+          // 입력 칸을 채우기 전(첫 렌더)에는 바뀐 것으로 보지 않는다 (PR #246 리뷰)
+          if (draft === undefined || draft === toText(c.defaultGroomWeeks)) return [];
+          return [{ ...c, defaultGroomWeeks: toInt(draft) as number }];
+        }),
     [coats, weeks],
   );
 
@@ -124,7 +133,7 @@ export function RuleSettings() {
     const result = await ruleSave.save((key) => saveVaccineRules(changedGroups, { idempotencyKey: key }), changedGroups);
     if (result) {
       setToast(RULE_COPY.rulesSaved);
-      retry();
+      ruleQuery.retry();
     }
   }
 
@@ -134,12 +143,23 @@ export function RuleSettings() {
     const result = await coatSave.save((key) => saveCoatIntervals(changedCoats, { idempotencyKey: key }), changedCoats);
     if (result) {
       setToast(RULE_COPY.rulesSaved);
-      retry();
+      coatQuery.retry();
     }
   }
 
-  if (failure && !data) {
-    return <ErrorState message={failure.message} onRetry={failure.retry ? retry : undefined} retrying={loading} />;
+  const loadFailure = (!groups && ruleQuery.failure) || (!coats && coatQuery.failure);
+  if (loadFailure) {
+    const retryBoth = () => {
+      if (!groups) ruleQuery.retry();
+      if (!coats) coatQuery.retry();
+    };
+    return (
+      <ErrorState
+        message={loadFailure.message}
+        onRetry={loadFailure.retry ? retryBoth : undefined}
+        retrying={ruleQuery.loading || coatQuery.loading}
+      />
+    );
   }
 
   return (
@@ -151,7 +171,11 @@ export function RuleSettings() {
       <div className={styles.section}>
         <h2 className={styles.sectionTitle}>접종 규칙</h2>
         <p className={styles.guide}>{RULE_COPY.majorGuide}</p>
-        {rulesTouched && ruleErrors && <Notice tone="danger">{RULE_COPY.invalid}</Notice>}
+        {rulesTouched && ruleErrors && (
+          <div id={RULE_ERROR_ID}>
+            <Notice tone="danger">{RULE_COPY.invalid}</Notice>
+          </div>
+        )}
         {ruleSave.failure && <Notice tone="danger">{ruleSave.failure.message}</Notice>}
         <div className={styles.card} aria-busy={!groups}>
           <table className={styles.table}>
@@ -174,6 +198,7 @@ export function RuleSettings() {
                   onMajor={(value) => setMajors((m) => ({ ...m, [g.vaccineType.vaccineTypeId]: value }))}
                   drafts={rules}
                   showErrors={rulesTouched}
+                  disabled={ruleSave.saving}
                   onChange={(ruleId, field, value) =>
                     setRules((all) => ({ ...all, [ruleId]: { ...all[ruleId], [field]: value } }))
                   }
@@ -192,7 +217,11 @@ export function RuleSettings() {
 
       <div className={styles.section}>
         <h2 className={styles.sectionTitle}>미용 기본 간격</h2>
-        {coatTouched && coatErrors && <Notice tone="danger">{RULE_COPY.invalid}</Notice>}
+        {coatTouched && coatErrors && (
+          <div id={COAT_ERROR_ID}>
+            <Notice tone="danger">{RULE_COPY.invalid}</Notice>
+          </div>
+        )}
         {coatSave.failure && <Notice tone="danger">{coatSave.failure.message}</Notice>}
         <div className={styles.card} aria-busy={!coats}>
           <table className={styles.table}>
@@ -205,6 +234,7 @@ export function RuleSettings() {
             <tbody>
               {(coats ?? []).map((c) => {
                 const value = weeks[c.coatTypeId] ?? "";
+                const invalid = coatTouched && isInvalid(value);
                 return (
                   <tr key={c.coatTypeId}>
                     <td>{c.name}</td>
@@ -215,7 +245,9 @@ export function RuleSettings() {
                         min={1}
                         inputMode="numeric"
                         aria-label={`${c.name} 기본 간격(주)`}
-                        aria-invalid={coatTouched && isInvalid(value)}
+                        aria-invalid={invalid}
+                        aria-describedby={invalid ? COAT_ERROR_ID : undefined}
+                        disabled={coatSave.saving}
                         value={value}
                         onChange={(e) => setWeeks((w) => ({ ...w, [c.coatTypeId]: e.target.value }))}
                       />
@@ -243,6 +275,7 @@ function RuleGroupRows({
   onMajor,
   drafts,
   showErrors,
+  disabled,
   onChange,
 }: {
   group: VaccineRuleGroup;
@@ -250,6 +283,7 @@ function RuleGroupRows({
   onMajor: (value: boolean) => void;
   drafts: Record<number, RuleDraft>;
   showErrors: boolean;
+  disabled: boolean;
   onChange: (ruleId: number, field: RuleField, value: string) => void;
 }) {
   const { vaccineType } = group;
@@ -265,8 +299,14 @@ function RuleGroupRows({
         if (!draft) return null;
         return (
           <tr key={rule.vaccineRuleId}>
-            <td title={rule.note ?? undefined}>{PHASE_LABEL[rule.phase]}</td>
-            {RULE_COLUMNS.map(({ field, label, optional }) => (
+            <td>
+              {PHASE_LABEL[rule.phase]}
+              {/* 규칙 근거 메모: 값끼리 엮여 있어 근거를 보고 고치게 (PR #246 리뷰). 터치 화면에서도 보이게 title이 아니라 글자로 */}
+              {rule.note && <span className={styles.note}>{rule.note}</span>}
+            </td>
+            {RULE_COLUMNS.map(({ field, label, optional }) => {
+              const invalid = showErrors && isInvalid(draft[field], optional);
+              return (
               <td key={field}>
                 <input
                   className={styles.number}
@@ -274,12 +314,15 @@ function RuleGroupRows({
                   min={1}
                   inputMode="numeric"
                   aria-label={`${vaccineType.name} ${PHASE_LABEL[rule.phase]} ${label}`}
-                  aria-invalid={showErrors && isInvalid(draft[field], optional)}
+                  aria-invalid={invalid}
+                  aria-describedby={invalid ? RULE_ERROR_ID : undefined}
+                  disabled={disabled}
                   value={draft[field]}
                   onChange={(e) => onChange(rule.vaccineRuleId, field, e.target.value)}
                 />
               </td>
-            ))}
+              );
+            })}
           </tr>
         );
       })}
