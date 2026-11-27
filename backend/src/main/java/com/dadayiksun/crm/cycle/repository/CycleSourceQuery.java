@@ -33,7 +33,8 @@ public interface CycleSourceQuery {
 
     /**
      * 선택 접종 종류 (#204, 접종 규칙 표 2장 8번): 기록이 있는 아이에게만 예정을 만든다.
-     * 가정: 주요 접종이 아니고(is_major = 0) 쓰는 규칙에 PREVENTIVE 단계가 없는 종류 (코로나 장염 · 켄넬코프 · 인플루엔자).
+     * 가정: 주요 접종이 아니고(is_major = 0) 규칙에 PREVENTIVE 단계 행이 하나도 없는 종류 (코로나 장염 · 켄넬코프 · 인플루엔자).
+     * PREVENTIVE 행은 쓰는지(is_active)와 상관없이 본다 (행을 꺼도 분류가 바뀌지 않게).
      * 심장사상충 · 구충제(PREVENTIVE)와 주요 접종은 빠진다. vaccine_type에 칸을 더할지는 #175에서 다시 정한다.
      */
     Set<Long> selectiveTypeIds();
