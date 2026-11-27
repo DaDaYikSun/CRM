@@ -82,20 +82,24 @@ public final class AuthSession {
 
     /**
      * 이 세션이 로그인할 때의 비밀번호가 지금 직원 행의 비밀번호와 같은가.
-     * 표식이 없는 세션(이 기능 전에 만든 세션 · 테스트 세션)은 같다고 본다.
+     * 표식이 없는 세션(이 기능 전에 만든 세션)은 다르다고 본다: 배포 때 한 번 다시 로그인한다
+     * (로그인 시각이 없는 세션을 지난 것으로 본 #167과 같음, #183 리뷰).
      */
     public static boolean passwordStampMatches(HttpServletRequest request, String currentPasswordHash) {
-        HttpSession session = request.getSession(false);
-        if (session == null || !(session.getAttribute(PASSWORD_STAMP) instanceof String stamp)) {
-            return true;
-        }
-        return currentPasswordHash != null && MessageDigest.isEqual(
+        String stamp = passwordStampOf(request);
+        return stamp != null && currentPasswordHash != null && MessageDigest.isEqual(
                 stamp.getBytes(StandardCharsets.US_ASCII),
                 passwordStamp(currentPasswordHash).getBytes(StandardCharsets.US_ASCII));
     }
 
+    /** 이 세션의 비밀번호 표식. 없으면 null. */
+    public static String passwordStampOf(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        return session != null && session.getAttribute(PASSWORD_STAMP) instanceof String stamp ? stamp : null;
+    }
+
     /** 비밀번호 해시의 SHA-256 (16진수). 세션에 해시를 그대로 두지 않으려고 쓴다. */
-    static String passwordStamp(String passwordHash) {
+    public static String passwordStamp(String passwordHash) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(passwordHash.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);

@@ -106,6 +106,17 @@ public class StaffRepository {
                 passwordHash, mustChangePassword ? 1 : 0, staffId);
     }
 
+    /**
+     * 비밀번호가 아직 {@code expectedHash}일 때만 바꾼다. 바꿨으면 true.
+     * 새 비밀번호 정하기와 관리자 초기화가 겹쳐, 초기화로 생긴 임시 비밀번호를 그 전에 시작한 변경이 덮어쓰지 않게 한다 (#183 리뷰).
+     */
+    public boolean updatePasswordIfCurrent(Long staffId, String expectedHash, String passwordHash,
+            boolean mustChangePassword) {
+        return jdbc.update(
+                "UPDATE staff SET password_hash = ?, must_change_password = ? WHERE staff_id = ? AND password_hash = ?",
+                passwordHash, mustChangePassword ? 1 : 0, staffId, expectedHash) == 1;
+    }
+
     private static LocalDateTime toLocal(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toLocalDateTime();
     }

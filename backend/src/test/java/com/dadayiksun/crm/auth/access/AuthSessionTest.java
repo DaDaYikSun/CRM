@@ -91,7 +91,8 @@ class AuthSessionTest {
     }
 
     @Test
-    void 표식이_없는_세션은_비밀번호를_비교하지_않는다() {
-        assertThat(AuthSession.passwordStampMatches(requestWith(loggedInAt(Instant.now())), "x")).isTrue();
+    void 표식이_없는_세션은_비밀번호가_다르다고_본다() {
+        // 표식 기능 전에 만든 세션: 배포 때 한 번 다시 로그인 (#183 리뷰)
+        assertThat(AuthSession.passwordStampMatches(requestWith(loggedInAt(Instant.now())), "x")).isFalse();
     }
 }
