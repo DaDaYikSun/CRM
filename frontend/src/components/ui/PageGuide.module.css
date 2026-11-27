@@ -1,0 +1,5 @@
+/* 화면 위쪽 한 줄 안내 (FR-COM-002, #168) */
+.guide {
+  margin: var(--spacing-4) 0 var(--spacing-16);
+  color: var(--text-secondary);
+}
