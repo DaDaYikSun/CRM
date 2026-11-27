@@ -121,10 +121,20 @@ export function ContactPanel({
     choose(Object.fromEntries(items.map((i) => [i.scheduleId, result])));
   }
 
-  function requestSave() {
+  // 2일차 확인 창은 저장을 누른 때의 최신 주기 상태와 한국 날짜로 판단한다 (PR #225 리뷰):
+  // 패널을 연 사이 다른 직원이 남긴 '전화 안 받음'이나 자정을 넘긴 경우에도 확인 없이 주기가 끝나지 않게
+  async function requestSave() {
     if (!panel) return;
-    // 저장을 누른 때의 한국 날짜로 본다: 패널을 연 채 자정을 넘겨도 2일차 확인 창을 놓치지 않게 (PR #225 리뷰)
-    if (isSecondDayNoAnswer(items, results, todayKst())) {
+    setSaving(true);
+    let latest = items;
+    try {
+      const fresh = (await getContactPanel(guardianId)).pets.flatMap((p) => p.items);
+      latest = items.map((i) => fresh.find((f) => f.scheduleId === i.scheduleId) ?? i);
+    } catch {
+      // 못 불러오면 지금 화면 값으로 판단한다. 저장 자체는 서버가 최신 상태로 처리한다
+    }
+    if (isSecondDayNoAnswer(latest, results, todayKst())) {
+      setSaving(false);
       dialog.current?.showModal();
       return;
     }
@@ -220,7 +230,7 @@ export function ContactPanel({
               className={styles.form}
               onSubmit={(e) => {
                 e.preventDefault();
-                requestSave();
+                void requestSave();
               }}
             >
               <ResultButtons label="모든 항목에 같은 결과" value={undefined} onChange={chooseAll} />
