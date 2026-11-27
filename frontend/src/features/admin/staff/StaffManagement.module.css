@@ -31,6 +31,11 @@
   box-shadow: var(--shadow-card);
 }
 
+/* 초기화 중 포커스를 창 자체에 둘 때 테두리를 그리지 않는다 (tabIndex -1) */
+.dialog:focus {
+  outline: none;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

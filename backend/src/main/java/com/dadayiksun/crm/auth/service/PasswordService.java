@@ -25,13 +25,15 @@ public class PasswordService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    /** 조건에 안 맞으면 400 PASSWORD_RULE (정책 4-2 '비밀번호 조건'). */
+    /** 조건에 안 맞으면 400 PASSWORD_RULE (정책 4-2 '비밀번호 조건'). 저장한 새 해시를 돌려준다 (세션 비밀번호 표식용). */
     @Transactional
-    public void change(Long staffId, String newPassword) {
+    public String change(Long staffId, String newPassword) {
         if (!PasswordRule.isValid(newPassword)) {
             throw new ApiException(ErrorCode.PASSWORD_RULE);
         }
         staffRepository.findById(staffId).orElseThrow(() -> new ApiException(ErrorCode.SESSION_EXPIRED));
-        staffRepository.updatePassword(staffId, passwordEncoder.encode(newPassword), false);
+        String hash = passwordEncoder.encode(newPassword);
+        staffRepository.updatePassword(staffId, hash, false);
+        return hash;
     }
 }

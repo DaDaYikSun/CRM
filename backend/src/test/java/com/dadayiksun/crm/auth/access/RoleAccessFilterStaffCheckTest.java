@@ -89,4 +89,21 @@ class RoleAccessFilterStaffCheckTest {
         assertThat(blocked.getStatus()).isEqualTo(403);
         assertThat(blocked.getContentAsString()).contains("PASSWORD_CHANGE_REQUIRED");
     }
+
+    @Test
+    void 로그인_뒤_비밀번호가_바뀌면_남은_세션은_지우고_401() throws Exception {
+        // 비밀번호 확인(옛 해시)과 세션 저장 사이에 초기화가 끼어들어 세션 지우기가 놓친 세션 (#183 리뷰)
+        MockHttpServletRequest login = new MockHttpServletRequest();
+        AuthSession.start(login, new Staff(2L, "desk", "old-hash", "데스크", Role.DESK, true, false));
+        MockHttpSession session = (MockHttpSession) login.getSession(false);
+
+        when(staffs.findById(2L)).thenReturn(Optional.of(new Staff(2L, "desk", "old-hash", "데스크", Role.DESK, true, false)));
+        assertThat(call(session, "GET", "/api/targets").getStatus()).isEqualTo(200);
+
+        when(staffs.findById(2L)).thenReturn(Optional.of(new Staff(2L, "desk", "new-hash", "데스크", Role.DESK, true, true)));
+        MockHttpServletResponse response = call(session, "POST", "/api/auth/password");
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).contains("SESSION_EXPIRED");
+        assertThat(session.isInvalid()).isTrue();
+    }
 }

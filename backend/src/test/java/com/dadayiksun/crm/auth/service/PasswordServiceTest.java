@@ -33,10 +33,11 @@ class PasswordServiceTest {
     @Test
     void 조건에_맞으면_해시로_바꾸고_임시_상태를_푼다() {
         when(repo.findById(5L)).thenReturn(Optional.of(new Staff(5L, "desk02", "old", "새 데스크", Role.DESK, true, true)));
-        service.change(5L, "newPass99");
+        String saved = service.change(5L, "newPass99");
         ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
         verify(repo).updatePassword(eq(5L), hash.capture(), eq(false));
         assertThat(encoder.matches("newPass99", hash.getValue())).isTrue();
+        assertThat(saved).isEqualTo(hash.getValue()); // 세션 비밀번호 표식용 (#183 리뷰)
     }
 
     @Test

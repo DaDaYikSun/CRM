@@ -49,7 +49,8 @@ export function StaffManagement() {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   // 응답을 잃고 다시 눌러도 같은 직원이면 같은 키: 서버가 처음 만든 임시 비밀번호를 그대로 돌려준다 (K15)
-  const resetKey = useRef<{ staffId: number; key: string } | null>(null);
+  // 직원별로 둔다: 다른 직원 창을 열었다 돌아와도 키가 바뀌지 않는다 (#183 리뷰). 응답을 받으면 그 직원 키만 지운다
+  const resetKeys = useRef(new Map<number, string>());
   const loadSeq = useRef(0);
   const addDialog = useRef<HTMLFormElement>(null);
   const tempDialog = useRef<HTMLDivElement>(null);
@@ -62,6 +63,13 @@ export function StaffManagement() {
     if (!resetting) setResetTarget(null);
   }, [resetting]);
   useDialogFocus(resetDialog, resetTarget !== null, closeReset);
+  // 초기화 중에는 두 버튼이 다 꺼져 포커스가 창 밖으로 빠진다: 창 자체에 두고, 끝나면(실패) 첫 버튼으로 돌린다 (#183 리뷰)
+  useEffect(() => {
+    const dialog = resetDialog.current;
+    if (!dialog) return;
+    if (resetting) dialog.focus();
+    else if (document.activeElement === dialog) dialog.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+  }, [resetting]);
   useDialogFocus(addDialog, adding, closeAdd);
   useDialogFocus(tempDialog, tempPassword !== null, closeTemp);
 
@@ -140,17 +148,18 @@ export function StaffManagement() {
 
   function openReset(item: StaffItem) {
     setResetError(null);
-    if (resetKey.current?.staffId !== item.staffId) resetKey.current = { staffId: item.staffId, key: newIdempotencyKey() };
+    if (!resetKeys.current.has(item.staffId)) resetKeys.current.set(item.staffId, newIdempotencyKey());
     setResetTarget(item);
   }
 
   async function confirmReset() {
-    if (!resetTarget || !resetKey.current) return;
+    const key = resetTarget ? resetKeys.current.get(resetTarget.staffId) : undefined;
+    if (!resetTarget || !key) return;
     setResetting(true);
     setResetError(null);
     try {
-      const result = await resetStaffPassword(resetTarget.staffId, { idempotencyKey: resetKey.current.key });
-      resetKey.current = null;
+      const result = await resetStaffPassword(resetTarget.staffId, { idempotencyKey: key });
+      resetKeys.current.delete(resetTarget.staffId);
       setResetTarget(null);
       setTempPassword(result.tempPassword);
     } catch (e) {
@@ -318,6 +327,7 @@ export function StaffManagement() {
           <div
             ref={resetDialog}
             className={styles.dialog}
+            tabIndex={-1}
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="reset-title"
