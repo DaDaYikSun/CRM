@@ -19,7 +19,8 @@ const OUT_DIR = resolve(HERE, '../../src/main/resources/db/dummy');
 // ---------------------------------------------------------------------
 // 설정
 // ---------------------------------------------------------------------
-const SEED = 20261126;
+// 씨앗: 매뉴얼 목표(누락률 3-4 · 결과별 전환 3-3 · 연락 700~1,300건)를 모두 만족하는 값으로 골랐다 (PR #238 리뷰). DUMMY_SEED로 바꿔 볼 수 있다
+const SEED = Number(process.env.DUMMY_SEED ?? 20261148);
 const START = '2025-06-01';           // 데이터 기간 시작 (매뉴얼 2장)
 const CRM_START = seedSetting('CRM_START_DATE'); // CRM 도입일 (매뉴얼 3-4, V2 기본 데이터)
 // 정책 기준값은 기본 데이터(setting)에서 읽는다 (CLAUDE.md 3번)
@@ -41,7 +42,9 @@ const VACCINE_NAME = {
 
 // 누락 경향 (매뉴얼 3-2 · 3-4): 도입 전 30% 안팎, 도입 뒤 15~20% (아이 기준). 주기마다 확률은 아래 CYCLE_MISS. 늦었지만 14일 안 15%
 const LATE_WITHIN_RATE = 0.15;
-const CONTACT_THIS_WEEK_SHARE = 0.3; // 도입 뒤 제때 올 아이 중 예정일 전에 미리 연락한 비율 (이번 주 탭)
+// 도입 뒤 예정일까지 안 온 아이에게 연락하는 비율 (미용은 보호자가 알아서 오는 경우가 많아 낮게)
+const CONTACT_LATE_SHARE = { VACCINE: 1.0, GROOMING: 0.4 };
+const CONTACT_THIS_WEEK_SHARE = 0.12; // 도입 뒤 제때 올 아이 중 예정일 전에 미리 연락한 비율 (이번 주 탭)
 const REGULAR_GROOMER_MISS_FACTOR = 0.55; // 미용 꼬박꼬박 오는 아이는 접종 누락이 낮다 (가설 3)
 
 // 연락 결과 비율과 전환 목표 (매뉴얼 3-3)
@@ -49,7 +52,7 @@ const RESULT_WEIGHTS = [
   ['BOOKED', 35], ['NO_ANSWER', 30], ['REFUSED', 15], ['OTHER_HOSPITAL', 10], ['WRONG_NUMBER', 10],
 ];
 const CONVERT_RATE = {
-  BOOKED: 0.85, REFUSED: 0.07, OTHER_HOSPITAL: 0.03, WRONG_NUMBER: 0,
+  BOOKED: 0.76, REFUSED: 0.06, OTHER_HOSPITAL: 0.03, WRONG_NUMBER: 0,
   NO_ANSWER_PHONE: 0.25, NO_ANSWER_SMS: 0.45,
 };
 
@@ -320,7 +323,11 @@ function smsBody(service, p, due, code) {
  * 연락 한 번 (묶음). 결과를 정하고 기록을 남긴다. 전환 여부(재방문 확률)를 돌려준다.
  * 전환 여부 자체(is_converted)는 CSV에 넣지 않는다. 적재 뒤 #154 규칙(DB 설계 5-3)으로 채운다.
  */
+// 마지막 연락 결과 (2일차까지 본 결과). 거절 · 다른 병원 · 번호 오류면 연락이 재방문으로 이어지지 않을 때 오지 않는다
+let lastContactResult = null;
+const NOT_COMING = ['REFUSED', 'OTHER_HOSPITAL', 'WRONG_NUMBER'];
 function contactFor(p, service, code, due, day) {
+  lastContactResult = null;
   const o = p._owner;
   const items = [{ p, code }];
   const groupId = uuid();
@@ -335,6 +342,7 @@ function contactFor(p, service, code, due, day) {
   }
   const rows = (m, r, d, note) => {
     for (const it of items) {
+      cycleContacts.push(contacts.length);
       contacts.push({
         contact_group_id: groupId,
         guardian_id: o.guardian_id,
@@ -358,11 +366,13 @@ function contactFor(p, service, code, due, day) {
     rows('PHONE', 'NO_ANSWER', day);
     // 다음 날 2일차 (POL-TGT-006, 매뉴얼 3-3: 2일차까지만)
     const d2 = addDays(day, 1);
+    lastContactResult = 'NO_ANSWER';
     if (before(END, d2) || onHold(p, d2)) return 0;
     const follow = o.sms_agreed && chance(0.5) ? 'SMS' : 'PHONE';
     const groupId2 = uuid();
     const r2 = follow === 'PHONE' ? (chance(0.6) ? 'NO_ANSWER' : 'BOOKED') : null;
     for (const it of items) {
+      cycleContacts.push(contacts.length);
       contacts.push({
         contact_group_id: groupId2, guardian_id: o.guardian_id, pet_id: it.p.pet_id, service_type: service,
         vaccine_type_code: it.code ?? '', method: follow, result: r2 ?? '', is_mock_sms: follow === 'SMS' ? 1 : 0,
@@ -371,10 +381,12 @@ function contactFor(p, service, code, due, day) {
         contacted_at: workTime(d2), created_by_login_id: desk,
       });
     }
+    lastContactResult = r2 ?? 'NO_ANSWER';
     if (r2 === 'BOOKED') return CONVERT_RATE.BOOKED;
     return follow === 'SMS' ? CONVERT_RATE.NO_ANSWER_SMS : CONVERT_RATE.NO_ANSWER_PHONE;
   }
   rows(method, result, day, result === 'REFUSED' ? pick(['다음에 연락 달라고 함', '당분간 안 온다고 함', '']) : '');
+  lastContactResult = result;
   if (result === null) return CONVERT_RATE.NO_ANSWER_SMS; // 문자만 보내고 답 없음
   return CONVERT_RATE[result];
 }
@@ -438,13 +450,17 @@ function nextGroomDue(p, dates) {
 // 주기마다 누락 확률. 지표는 아이 기준(기간 안 주기 중 하나라도 누락이면 누락, T15)이라
 // 주기 하나의 확률은 매뉴얼 목표(도입 전 30% 안팎 · 도입 뒤 15~20%)보다 낮게 둔다. 맞춘 값은 끝에 출력한다.
 const CYCLE_MISS = {
-  VACCINE: { before: 0.17, after: 0.27 },
-  GROOMING: { before: 0.02, after: 0.03 },
+  VACCINE: { before: 0.17, after: 0.17 },
+  GROOMING: { before: 0.01, after: 0.005 },
 };
 const JUDGE_DAY = addDays(END, 1); // 적재 뒤 판정 작업이 도는 날 (END 다음 날로 본다)
 const BASELINE_FROM = '2024-07-01'; // 등록 뒤 기록은 이날부터 (기간 직전 기준 접종)
 const GROOM_CAP = 10; // 매뉴얼 2장: 미용 오는 아이마다 3~10회
+let cycleContacts = []; // 지금 주기에서 만든 연락 행 (전환 기대값 계산용)
 const cycles = []; // { p, service, code, due, visit } 생성 때 기대 누락률을 세는 데 쓴다
+
+/** 연락 결과로 이번 주기에 기준 안에 오지 않음: 한참 늦게 오거나 안 옴 */
+const notComing = (due) => (chance(0.5) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 1, 60)) : null);
 
 /**
  * 예정 하나(due)에 대한 실제 방문일을 정한다. 안 오면 null.
@@ -462,18 +478,23 @@ function outcome(p, service, code, due, missBase) {
 
   // 도입 뒤: 예정일까지 안 왔으면 데스크가 연락 (오늘 탭)
   const notYet = visit === null || before(due, visit);
-  if (after && notYet && canContact(p._owner) && inData(due) && before(due, END)) {
+  if (after && notYet && canContact(p._owner) && inData(due) && before(due, END) && chance(CONTACT_LATE_SHARE[service])) {
     const day = addDays(due, randInt(0, 2));
     // 연락은 그 주기의 방문보다 앞서야 한다. 방문 뒤 연락은 다음 주기에 붙으므로 만들지 않는다 (PR #226 CodeRabbit)
     if (!before(END, day) && !onHold(p, day) && (visit === null || before(day, visit))) {
       const conv = contactFor(p, service, code, due, day);
-      // 연락이 재방문으로 이어지면 기준 안에 온다. 이어지지 않으면 원래 정해진 대로 (연락 때문에 더 늦어지지는 않는다)
+      // 연락이 재방문으로 이어지면 기준 안에 온다. 이어지지 않으면 원래 정해진 대로, 다만 거절 · 다른 병원 · 번호 오류면 기준 안에 오지 않는다
+      // (전환 판정 #154는 연락 뒤 기준 안 방문을 전환으로 세므로, 결과별 전환율이 매뉴얼 3-3과 맞게)
       if (chance(conv)) visit = addDays(day, randInt(1, Math.max(1, Math.min(12, diffDays(day, addDays(due, MISS_THRESHOLD_DAYS))))));
+      else if (NOT_COMING.includes(lastContactResult)) visit = notComing(due);
     }
   } else if (after && !notYet && canContact(p._owner) && inData(due) && chance(CONTACT_THIS_WEEK_SHARE)) {
     // 도입 뒤: 이번 주 탭 — 예정일 전에 미리 연락 (예정일까지 아직 안 온 아이)
     const day = addDays(due, -randInt(1, 5));
-    if (inData(day) && before(day, visit) && !onHold(p, day)) contactFor(p, service, code, due, day); // 제때 올 아이라 방문은 그대로
+    if (inData(day) && before(day, visit) && !onHold(p, day)) {
+      const conv = contactFor(p, service, code, due, day); // 제때 올 아이라 방문은 그대로, 거절 · 다른 병원 · 번호 오류만 안 옴
+      if (NOT_COMING.includes(lastContactResult) && !chance(conv)) visit = notComing(due);
+    }
   } else if (!after && notYet && canContact(p._owner) && chance(0.03) && inData(due)) {
     const day = addDays(due, randInt(0, 3));
     if (!onHold(p, day)) contactFor(p, service, code, due, day); // 도입 전: 연락 기록이 거의 없음
@@ -490,25 +511,32 @@ function outcome(p, service, code, due, missBase) {
 function simulate(p, service, code, history, opts = {}) {
   const dates = [...history];
   const nextDue = () => (service === 'GROOMING' ? nextGroomDue(p, dates) : nextVaccineDue(p, code, dates));
-  const record = (d) => { if (service === 'VACCINE') addVaccination(p, code, d); else addGrooming(p, d); dates.push(d); };
+  const record = (d) => {
+    if (service === 'VACCINE') addVaccination(p, code, d); else addGrooming(p, d);
+    dates.push(d);
+    // 그 주기의 방문 시각 (적재기는 방문일 + 입력 시각으로 줄을 세운다, DummyTimeline.visit)
+    const last = cycles[cycles.length - 1];
+    if (last && last.p === p && last.visit === d) last.visitAt = `${d} ${(service === 'VACCINE' ? vaccinations : groomings).at(-1).created_at.slice(11)}`;
+  };
   let due = nextDue();
   let visits = 0;
   let guard = 0;
   while (due && !before(END, due) && guard++ < 400) {
     if (!alive(p, due)) break;
-    if (opts.stop?.(visits)) { cycles.push({ p, service, code, due, visit: null }); break; }
+    if (opts.stop?.(visits)) { cycles.push({ p, service, code, due, visit: null, contacts: cycleContacts.splice(0) }); break; }
     // 기록 시작일(floor) 전에 예정이 된 주기는 기록을 두지 않고, 시작일 무렵 늦게 온 것으로 닫는다 (그 전 기간의 누락)
     const floor = opts.floor ?? BASELINE_FROM;
     if (before(due, floor)) {
       const v = randDate(floor, minDate(addDays(floor, 30), END));
-      if (!alive(p, v)) { cycles.push({ p, service, code, due, visit: null }); break; } // 무지개다리 뒤 방문은 없다
-      cycles.push({ p, service, code, due, visit: v });
+      if (!alive(p, v)) { cycles.push({ p, service, code, due, visit: null, contacts: cycleContacts.splice(0) }); break; } // 무지개다리 뒤 방문은 없다
+      cycles.push({ p, service, code, due, visit: v, contacts: cycleContacts.splice(0) });
       record(v);
       visits++;
       due = nextDue();
       continue;
     }
-    let v = opts.forceLate?.(visits) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 20, MISS_THRESHOLD_DAYS + 60)) : outcome(p, service, code, due, opts.missBase ?? 1);
+    cycleContacts = [];
+    let v = opts.forceLate?.(visits, due) ? addDays(due, randInt(MISS_THRESHOLD_DAYS + 20, MISS_THRESHOLD_DAYS + 60)) : outcome(p, service, code, due, opts.missBase ?? 1);
     if (v && (before(END, v) || !alive(p, v))) v = null;
     // 제때(예정일 며칠 전) 방문이 기록 시작일 · 등록일 앞으로 가지 않게. 등록일 전 방문은 적재기가 등록 전 과거 기록으로 넣어 주기가 어긋난다
     const lower = maxDate(floor, p._reg);
@@ -517,16 +545,16 @@ function simulate(p, service, code, history, opts = {}) {
       // 안 옴: 주기는 열린 채 판정된다. 한참 뒤 늦게라도 오는 아이도 있다
       const late = addDays(due, randInt(60, 200));
       if (!before(END, late) && alive(p, late) && chance(0.35)) {
-        cycles.push({ p, service, code, due, visit: late });
+        cycles.push({ p, service, code, due, visit: late, contacts: cycleContacts.splice(0) });
         record(late);
         visits++;
         due = nextDue();
         continue;
       }
-      cycles.push({ p, service, code, due, visit: null });
+      cycles.push({ p, service, code, due, visit: null, contacts: cycleContacts.splice(0) });
       break;
     }
-    cycles.push({ p, service, code, due, visit: v });
+    cycles.push({ p, service, code, due, visit: v, contacts: cycleContacts.splice(0) });
     record(v);
     visits++;
     due = nextDue();
@@ -586,7 +614,7 @@ for (const p of pets) {
     simulate(p, 'GROOMING', null, [], { stop: (n) => n >= (once ? 1 : 0) });
     continue;
   }
-  const bigGapAt = p._groom === 'JUMPY' ? randInt(1, 4) : -1; // 한 번 크게 늦음 (다른 곳에서 미용)
+  const bigGapAt = p._groom === 'JUMPY' ? randInt(1, 4) : -1; // 한 번 크게 늦음 (다른 곳에서 미용, 매뉴얼 3-2)
   // 미용 기록이 10회를 넘지 않게 미용을 다니기 시작한 날을 정한다 (그 전 예정은 시작일 무렵 늦게 온 것으로 닫힘)
   const def = COAT_DEFAULT_DAYS[p.coat_type_code];
   simulate(p, 'GROOMING', null, [], {
@@ -600,6 +628,7 @@ for (const p of pets) {
 // 같은 집 다른 아이도 함께 묶는다. 묶음 행은 같은 contact_group_id · 보호자 · 연락 시각 · 방법 · 결과를 쓴다.
 // 묶는 아이는 그 연락 뒤 기준(MISS_THRESHOLD_DAYS) 안에 이미 미용을 받은 아이만 고른다 (방문을 새로 만들지 않아 주기 계산이 그대로).
 const GROUP_CONTACT_SHARE = 0.6;
+const siblingContacts = []; // 묶음으로 더한 아이 행 (기대 전환율 계산용)
 for (const o of owners.filter((x) => multiOwners.has(x.guardian_id) && canContact(x))) {
   const kids = pets.filter((p) => p.guardian_id === o.guardian_id);
   const booked = contacts.filter((c) => c.guardian_id === o.guardian_id && c.service_type === 'GROOMING' && c.method === 'PHONE'
@@ -611,6 +640,7 @@ for (const o of owners.filter((x) => multiOwners.has(x.guardian_id) && canContac
     && groomings.some((g) => g.pet_id === k.pet_id && before(day, g.visit_date) && !before(addDays(day, MISS_THRESHOLD_DAYS), g.visit_date))
     && !contacts.some((x) => x.contact_group_id === c.contact_group_id && x.pet_id === k.pet_id));
   if (!b) continue;
+  siblingContacts.push(contacts.length);
   contacts.push({ ...c, pet_id: b.pet_id });
 }
 
@@ -636,6 +666,80 @@ for (const service of ['VACCINE', 'GROOMING']) {
   const pre = expectedMissRate(service, START, lastBefore);
   const post = expectedMissRate(service, CRM_START, END);
   console.log(`기대 누락률 ${service}: 도입 전 ${pre.rate}% (${pre.m}/${pre.n}), 도입 뒤 ${post.rate}% (${post.m}/${post.n})`);
+}
+// 기대 전환율 (#154 ConversionRule: 기준 안 방문이면 방문 시각 전 마지막 연락이 전환). 도입 뒤 연락만, 결과별.
+// 적재기와 같은 기준으로 연락을 주기에 붙인다: 등록일 전 연락은 넣지 않고, 연락한 시각에 열려 있던 주기(그 시각 뒤에 방문한 첫 주기)에 붙인다.
+// 2일차 전화도 안 받으면 후속 처리(C14)가 같은 시각에 모의 발송 문자 행을 더하므로 그 행도 넣는다 (PR #238 리뷰)
+{
+  const regOf = new Map(pets.map((p) => [p.pet_id, p._reg]));
+  const streams = new Map();
+  const openAfterEnd = new Map(); // 아이 · 서비스 · 종류별 '데이터 끝 뒤 예정' 주기의 연락 (주기마다 상태가 따로다)
+  for (const c of cycles) {
+    const k = `${c.p.pet_id}|${c.service}|${c.code}`;
+    if (!streams.has(k)) streams.set(k, []);
+    streams.get(k).push(c);
+    c.rows = [];
+  }
+  const place = (list, from, x) => {
+    let i = from;
+    while (i < list.length && list[i].visitAt && x.contacted_at >= list[i].visitAt) i++;
+    if (i < list.length) list[i].rows.push(x);
+    else { // 데이터 끝 뒤 예정의 열린 주기에 붙는다 (방문 없음, 전환 아님)
+      const k = `${x.pet_id}|${list[0].service}|${list[0].code}`;
+      if (!openAfterEnd.has(k)) openAfterEnd.set(k, []);
+      openAfterEnd.get(k).push(x);
+    }
+  };
+  const inData = (x) => !before(x.contacted_at.slice(0, 10), regOf.get(x.pet_id));
+  for (const list of streams.values()) {
+    list.forEach((c, i) => (c.contacts ?? []).forEach((idx) => { if (inData(contacts[idx])) place(list, i, contacts[idx]); }));
+  }
+  for (const idx of siblingContacts) { // 같은 집 묶음 연락으로 더한 아이 행
+    const x = contacts[idx];
+    const list = streams.get(`${x.pet_id}|GROOMING|null`);
+    if (list && inData(x)) place(list, 0, x);
+  }
+  const stat = {};
+  const out = [];
+  const afterEnd = [...openAfterEnd.values()].map((rows) => ({ rows, visit: null, visitAt: null, due: END }));
+  for (const c of [...cycles, ...afterEnd]) {
+    // 적재기가 넣는 순서 (DummyTimeline.merge: 시각 → 연락 묶음 → 아이 번호). 같은 시각이면 뒤에 넣은 행이 contact_log_id가 크다
+    const ordered = c.rows.sort((p1, p2) => (p1.contacted_at !== p2.contacted_at ? (p1.contacted_at < p2.contacted_at ? -1 : 1)
+      : p1.contact_group_id !== p2.contact_group_id ? (p1.contact_group_id < p2.contact_group_id ? -1 : 1) : p1.pet_id - p2.pet_id));
+    // 주기 연락 상태를 FollowUpRule.after와 같게 따라간다 (모의 발송 문자 행은 상태를 바꾸지 않는다).
+    // 2일차로 주기 연락을 끝내면 묶음을 다 넣은 뒤 후속 처리(C14)가 모의 발송 문자 행을 더한다 (수신 동의 있을 때)
+    const rows = [];
+    let state = 'NONE', count = 0, next = null;
+    let pendingMock = null;
+    ordered.forEach((x, i) => {
+      rows.push(x);
+      if (x.method === 'PHONE') {
+        const day = x.contacted_at.slice(0, 10);
+        if (x.result !== 'NO_ANSWER') { state = x.result; count = 0; next = null; }
+        else if (state !== 'CLOSED') {
+          if (state === 'NO_ANSWER' && next && before(day, next)) { next = x.next_contact_date || null; }
+          else if (count + 1 >= 2) { count += 1; state = 'CLOSED'; next = null; if (owners[x.guardian_id - 1].sms_agreed) pendingMock ??= x; }
+          else { count += 1; state = 'NO_ANSWER'; next = x.next_contact_date || null; }
+        }
+      }
+      const groupEnds = i + 1 === ordered.length || ordered[i + 1].contact_group_id !== x.contact_group_id;
+      if (groupEnds && pendingMock) { rows.push({ ...pendingMock, method: 'SMS', result: '', memo: '(후속 처리 모의 발송)' }); pendingMock = null; }
+    });
+    const within = c.visit && !before(addDays(c.due, MISS_THRESHOLD_DAYS), c.visit);
+    // 같은 시각이면 나중에 넣은 행 (ConversionRule: 연락 시각 → contact_log_id 순, rows는 넣는 순서)
+    const conv = within && rows.length ? rows.reduce((a, b) => (a.contacted_at > b.contacted_at ? a : b)) : null;
+    for (const x of rows) {
+      if (process.env.DUMMY_CONV_OUT) out.push(`${x.contact_group_id}|${x.method}|${x.result}|${x.pet_id}|${x === conv ? 1 : 0}`);
+      if (before(x.contacted_at.slice(0, 10), CRM_START)) continue;
+      const k = (x.result || '(문자만)') + ' ' + x.method;
+      stat[k] ??= [0, 0];
+      stat[k][0]++;
+      if (x === conv) stat[k][1]++;
+    }
+  }
+  // DUMMY_CONV_OUT=파일 이면 연락 행마다 기대 전환(묶음|방법|결과|아이|0·1)을 써서 적재 뒤 DB와 행 단위로 대조할 수 있다
+  if (process.env.DUMMY_CONV_OUT) writeFileSync(process.env.DUMMY_CONV_OUT, out.join(String.fromCharCode(10)));
+  console.log('기대 전환율 (도입 뒤): ' + Object.entries(stat).sort().map(([k, [n, m]]) => `${k} ${Math.round((1000 * m) / n) / 10}% (${m}/${n})`).join(', '));
 }
 // 미용을 다니는 아이만 (미용 안 오는 아이 · 0~1회 아이의 첫 미용 예정 누락을 뺀 값, 참고용)
 const groomers = (p) => p._groom && p._groom !== 'FEW';

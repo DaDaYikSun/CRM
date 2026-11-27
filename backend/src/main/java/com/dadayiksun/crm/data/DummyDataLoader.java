@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -27,12 +28,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.dadayiksun.crm.contact.service.ContactFollowUpService;
 import com.dadayiksun.crm.customer.domain.Chosung;
 import com.dadayiksun.crm.cycle.domain.Schedule;
 import com.dadayiksun.crm.cycle.domain.ServiceType;
 import com.dadayiksun.crm.cycle.service.CycleQueryService;
 import com.dadayiksun.crm.cycle.service.CycleService;
 import com.dadayiksun.crm.cycle.service.MissJudgementJob;
+import com.dadayiksun.crm.visit.domain.VisitRecordedEvent;
 
 /**
  * 시연용 더미 데이터 적재 (FR-DATA-001, #147, 팀 결정 K8). local · demo 프로필에서만 돈다. 운영에서는 이 빈이 없다.
@@ -47,7 +50,8 @@ import com.dadayiksun.crm.cycle.service.MissJudgementJob;
  *       방문은 넣고 '방문 기록됨'({@code onVisitRecorded}), 연락은 그때 열린 예정 일정에 붙인다 ({@link DummyTimeline}).
  *       무지개다리 아이는 기록을 다 넣은 뒤 상태를 바꾸고 다시 계산한다. 끝에 누락 판정 작업을 한 번 돌린다 (K20).</li>
  *   <li>붙일 예정 일정이 없는 연락(규칙 행이 아직 없는 선택 접종 · 등록 전 연락)은 넣지 않고 수만 남긴다.</li>
- *   <li>주기의 연락 상태(contact_state 등)와 전환(is_converted)은 아직 채우지 않는다. #154 판정 함수가 생기면 이 러너에서 부른다.</li>
+ *   <li>주기의 연락 상태(contact_state 등)는 연락 묶음마다 결과별 후속 처리(C14 {@code ContactFollowUpService.apply})로,
+ *       전환(is_converted)은 '방문 기록됨' 이벤트를 내서 contact 리스너가 판정한다 (#154, PR #201 · #226 리뷰). 둘 다 연락한 시각 기준이다.</li>
  * </ul>
  *
  * <p>K17(쓰기는 주인 도메인만)의 예외다: 시연 데이터라 staff(auth) · guardian · pet(customer) · visit(visit)에 바로 쓴다 (#147 남은 질문 4).
@@ -66,10 +70,13 @@ public class DummyDataLoader implements ApplicationRunner {
     private final CycleService cycle;
     private final CycleQueryService cycleQuery;
     private final MissJudgementJob missJudgement;
+    private final ContactFollowUpService followUp;
+    private final ApplicationEventPublisher events;
 
     public DummyDataLoader(JdbcTemplate jdbc, TransactionTemplate tx, PasswordEncoder passwordEncoder,
                            @Value("${crm.dummy.staff-password:}") String staffPassword,
-                           CycleService cycle, CycleQueryService cycleQuery, MissJudgementJob missJudgement) {
+                           CycleService cycle, CycleQueryService cycleQuery, MissJudgementJob missJudgement,
+                           ContactFollowUpService followUp, ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.passwordEncoder = passwordEncoder;
@@ -77,6 +84,8 @@ public class DummyDataLoader implements ApplicationRunner {
         this.cycle = cycle;
         this.cycleQuery = cycleQuery;
         this.missJudgement = missJudgement;
+        this.followUp = followUp;
+        this.events = events;
     }
 
     @Override
@@ -138,6 +147,7 @@ public class DummyDataLoader implements ApplicationRunner {
         int contactsBefore = 0;
         int contactsWithout = 0;
         List<Long> loadedPetIds = new ArrayList<>();
+        List<DummyTimeline.Event> after = new ArrayList<>();
         for (Map<String, String> p : pets) {
             long petId = petIds.get(p.get("pet_id"));
             loadedPetIds.add(petId);
@@ -151,27 +161,45 @@ public class DummyDataLoader implements ApplicationRunner {
                 insertVisit(petId, e, vaccineIds, staffIds);
             }
             cycle.createInitialSchedules(petId);
+            after.addAll(plan.afterRegistration());
+        }
 
-            for (DummyTimeline.Event e : plan.afterRegistration()) {
-                if (e.kind() == DummyTimeline.Kind.VISIT) {
-                    cycle.onVisitRecorded(insertVisit(petId, e, vaccineIds, staffIds));
-                } else if (insertContact(petId, e.row(), guardianIds, vaccineIds, staffIds)) {
-                    contacts++;
-                } else {
-                    contactsWithout++;
-                }
+        // 등록 뒤 기록은 모든 아이를 한 줄로 시간 순서대로 (같은 집 묶음 연락이 아이 둘에 걸치므로).
+        // 방문은 '방문 기록됨' 이벤트를 내서 실제처럼 cycle(주기 완료 · 다음 주기) → contact(전환 판정, #154) 순서로 듣게 하고,
+        // 연락은 묶음을 다 넣은 뒤 결과별 후속 처리(C14, #154)를 한 번 부른다 (주기 연락 상태 · 2일차 마침 · 번호 오류)
+        List<DummyTimeline.Event> timeline = DummyTimeline.merge(after);
+        for (int i = 0; i < timeline.size(); i++) {
+            DummyTimeline.Event e = timeline.get(i);
+            long petId = petIds.get(e.row().get("pet_id"));
+            if (e.kind() == DummyTimeline.Kind.VISIT) {
+                events.publishEvent(new VisitRecordedEvent(insertVisit(petId, e, vaccineIds, staffIds)));
+                continue;
             }
+            if (insertContact(petId, e.row(), guardianIds, vaccineIds, staffIds)) {
+                contacts++;
+            } else {
+                contactsWithout++;
+            }
+            String group = e.row().get("contact_group_id");
+            boolean groupEnds = i + 1 == timeline.size() || !group.equals(timeline.get(i + 1).row().get("contact_group_id"));
+            if (groupEnds) {
+                followUp.apply(group);
+            }
+        }
 
-            // 무지개다리 아이: 기록을 다 넣은 뒤 상태를 바꾸고 다시 계산한다 (DB 설계 5-1).
-            // 다시 계산은 '오늘' 기준이라, 무지개다리 날부터 적재일 전까지 예정이 된 OPEN 주기도 그날 기준으로 VOID한다
-            // (그날 표시했다면 VOID됐을 행, POL-END-002). 그날 전에 이미 지난 주기 · 판정은 그대로 (PR #226 리뷰)
-            if ("RAINBOW".equals(p.get("status"))) {
-                Timestamp rainbowAt = time(p.get("rainbow_at"));
-                jdbc.update("UPDATE pet SET status = 'RAINBOW', rainbow_at = ? WHERE pet_id = ?", rainbowAt, petId);
-                cycle.recalculatePet(petId);
-                jdbc.update("UPDATE schedule SET status = 'VOID' WHERE pet_id = ? AND status = 'OPEN' AND due_date >= ?",
-                        petId, Date.valueOf(rainbowAt.toLocalDateTime().toLocalDate()));
+        // 무지개다리 아이: 기록을 다 넣은 뒤 상태를 바꾸고 다시 계산한다 (DB 설계 5-1).
+        // 다시 계산은 '오늘' 기준이라, 무지개다리 날부터 적재일 전까지 예정이 된 OPEN 주기도 그날 기준으로 VOID한다
+        // (그날 표시했다면 VOID됐을 행, POL-END-002). 그날 전에 이미 지난 주기 · 판정은 그대로 (PR #226 리뷰)
+        for (Map<String, String> p : pets) {
+            if (!"RAINBOW".equals(p.get("status"))) {
+                continue;
             }
+            long petId = petIds.get(p.get("pet_id"));
+            Timestamp rainbowAt = time(p.get("rainbow_at"));
+            jdbc.update("UPDATE pet SET status = 'RAINBOW', rainbow_at = ? WHERE pet_id = ?", rainbowAt, petId);
+            cycle.recalculatePet(petId);
+            jdbc.update("UPDATE schedule SET status = 'VOID' WHERE pet_id = ? AND status = 'OPEN' AND due_date >= ?",
+                    petId, Date.valueOf(rainbowAt.toLocalDateTime().toLocalDate()));
         }
         int missed = missJudgement.run();
         int schedules = loadedPetIds.stream().mapToInt(id -> cycleQuery.findSchedules(id).size()).sum();
