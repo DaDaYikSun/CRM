@@ -39,6 +39,8 @@ export function TargetRow({ line, today, selected, onClick }: TargetRowProps) {
       className={`${styles.row} ${selected ? styles.selected : ""}`}
       onClick={onClick}
       onKeyDown={(e) => {
+        // 줄 자체에서 누른 키만 처리한다. 펼치기 버튼에서 올라온 Enter · Space는 버튼이 처리한다
+        if (e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onClick();

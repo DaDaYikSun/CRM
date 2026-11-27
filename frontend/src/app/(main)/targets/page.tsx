@@ -65,8 +65,10 @@ function Targets() {
   }, [tab, page]);
 
   const href = (t: TargetTab, p = 1) => `/targets?tab=${t}${p > 1 ? `&page=${p}` : ""}`;
-  const from = data && data.total > 0 ? (data.page - 1) * data.size + 1 : 0;
-  const to = data ? Math.min(data.total, data.page * data.size) : 0;
+  // 마지막보다 큰 페이지는 items가 비고 total만 온다 (K16 ⑥). 범위는 받은 줄이 있을 때만 보인다
+  const hasRows = !!data && data.items.length > 0;
+  const from = hasRows ? (data.page - 1) * data.size + 1 : 0;
+  const to = hasRows ? from + data.items.length - 1 : 0;
 
   return (
     <section>
@@ -89,8 +91,8 @@ function Targets() {
         })}
       </nav>
       {error && <p className={styles.error}>{error}</p>}
-      {data && data.total === 0 && <p className={styles.empty}>{EMPTY[tab]}</p>}
-      {data && data.total > 0 && (
+      {data && !hasRows && data.total === 0 && <p className={styles.empty}>{EMPTY[tab]}</p>}
+      {data && hasRows && (
         <>
           <p className={styles.sortNote}>예정일이 오래 지난 순</p>
           <div className={styles.list}>
@@ -104,14 +106,18 @@ function Targets() {
               />
             ))}
           </div>
-          <nav className={styles.pager} aria-label="페이지">
+        </>
+      )}
+      {data && data.total > 0 && (
+        <nav className={styles.pager} aria-label="페이지">
+          {hasRows && (
             <span>
               {from}–{to} / {data.total}가구 · {data.size}개씩
             </span>
-            {data.page > 1 && <Link href={href(tab, data.page - 1)}>이전</Link>}
-            {to < data.total && <Link href={href(tab, data.page + 1)}>다음</Link>}
-          </nav>
-        </>
+          )}
+          {data.page > 1 && <Link href={href(tab, Math.min(data.page - 1, Math.ceil(data.total / data.size)))}>이전</Link>}
+          {hasRows && to < data.total && <Link href={href(tab, data.page + 1)}>다음</Link>}
+        </nav>
       )}
     </section>
   );

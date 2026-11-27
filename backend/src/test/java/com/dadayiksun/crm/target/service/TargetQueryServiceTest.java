@@ -84,6 +84,37 @@ class TargetQueryServiceTest {
         assertThat(service(kst(2026, 11, 30, 0), List.of(nextMonday)).summary().today().total()).isEqualTo(1);
     }
 
+    @Test
+    void 요청_중에_자정이_지나도_조회와_판단은_같은_날짜를_쓴다() {
+        // 첫 번째로 시계를 읽을 때는 일요일 23:59:59, 그 뒤로는 월요일 0시
+        Clock ticking = new Clock() {
+            private int reads;
+
+            @Override
+            public java.time.ZoneId getZone() {
+                return KstClock.ZONE;
+            }
+
+            @Override
+            public Clock withZone(java.time.ZoneId zone) {
+                return this;
+            }
+
+            @Override
+            public java.time.Instant instant() {
+                ZonedDateTime t = reads++ == 0
+                        ? ZonedDateTime.of(2026, 11, 29, 23, 59, 59, 0, KstClock.ZONE)
+                        : ZonedDateTime.of(2026, 11, 30, 0, 0, 0, 0, KstClock.ZONE);
+                return t.toInstant();
+            }
+        };
+        TargetCandidate mondayDue = row(1).due(LocalDate.of(2026, 11, 30)).build();
+        TargetQueryService s = service(new KstClock(ticking), List.of(mondayDue));
+
+        // 요청을 시작한 날(일요일) 기준: 월요일 예정은 오늘 탭에 없다
+        assertThat(s.summary().today().total()).isZero();
+    }
+
     private static long petsIn(TargetQueryService s, TargetTab tab) {
         return s.list(tab, PageQuery.parse("1")).items().stream()
                 .flatMap(line -> line.pets().stream()).map(TargetLineResponse.Pet::petId).distinct().count();
