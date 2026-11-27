@@ -32,7 +32,7 @@ public final class ContactFakes {
         public ContactPanelResponse.TodayContact todayContact;
         public final List<HistoryRow> history = new ArrayList<>();
         public final List<OpenSchedule> open = new ArrayList<>();
-        public final List<PetContactRow> petHistory = new ArrayList<>();
+        public final List<HistoryRow> petHistory = new ArrayList<>();
         public LocalDate askedWeekEnd;
 
         @Override
@@ -62,7 +62,7 @@ public final class ContactFakes {
         }
 
         @Override
-        public List<PetContactRow> petHistory(long petId) {
+        public List<HistoryRow> petHistory(long petId) {
             return petHistory;
         }
 
