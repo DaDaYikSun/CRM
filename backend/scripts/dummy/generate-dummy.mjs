@@ -698,16 +698,30 @@ for (const service of ['VACCINE', 'GROOMING']) {
   const stat = {};
   const out = [];
   for (const c of [...cycles, { rows: openAfterEnd, visit: null, visitAt: null, due: END }]) {
+    // 적재기가 넣는 순서 (DummyTimeline.merge: 시각 → 연락 묶음 → 아이 번호). 같은 시각이면 뒤에 넣은 행이 contact_log_id가 크다
+    const ordered = c.rows.sort((p1, p2) => (p1.contacted_at !== p2.contacted_at ? (p1.contacted_at < p2.contacted_at ? -1 : 1)
+      : p1.contact_group_id !== p2.contact_group_id ? (p1.contact_group_id < p2.contact_group_id ? -1 : 1) : p1.pet_id - p2.pet_id));
+    // 주기 연락 상태를 FollowUpRule.after와 같게 따라간다 (모의 발송 문자 행은 상태를 바꾸지 않는다).
+    // 2일차로 주기 연락을 끝내면 묶음을 다 넣은 뒤 후속 처리(C14)가 모의 발송 문자 행을 더한다 (수신 동의 있을 때)
     const rows = [];
-    for (const x of c.rows.sort((a, b) => (a.contacted_at < b.contacted_at ? -1 : a.contacted_at > b.contacted_at ? 1 : 0))) {
+    let state = 'NONE', count = 0, next = null;
+    let pendingMock = null;
+    ordered.forEach((x, i) => {
       rows.push(x);
-      const day1 = c.rows.some((y) => y !== x && y.method === 'PHONE' && y.result === 'NO_ANSWER' && y.contacted_at < x.contacted_at);
-      if (x.memo === '2일차' && x.method === 'PHONE' && x.result === 'NO_ANSWER' && day1 && owners[x.guardian_id - 1].sms_agreed) {
-        rows.push({ ...x, method: 'SMS', result: '', memo: '(후속 처리 모의 발송)' });
+      if (x.method === 'PHONE') {
+        const day = x.contacted_at.slice(0, 10);
+        if (x.result !== 'NO_ANSWER') { state = x.result; count = 0; next = null; }
+        else if (state !== 'CLOSED') {
+          if (state === 'NO_ANSWER' && next && before(day, next)) { next = x.next_contact_date || null; }
+          else if (count + 1 >= 2) { count += 1; state = 'CLOSED'; next = null; if (owners[x.guardian_id - 1].sms_agreed) pendingMock ??= x; }
+          else { count += 1; state = 'NO_ANSWER'; next = x.next_contact_date || null; }
+        }
       }
-    }
+      const groupEnds = i + 1 === ordered.length || ordered[i + 1].contact_group_id !== x.contact_group_id;
+      if (groupEnds && pendingMock) { rows.push({ ...pendingMock, method: 'SMS', result: '', memo: '(후속 처리 모의 발송)' }); pendingMock = null; }
+    });
     const within = c.visit && !before(addDays(c.due, MISS_THRESHOLD_DAYS), c.visit);
-    // 같은 시각이면 나중에 넣은 행 (ConversionRule: 연락 시각 → contact_log_id 순)
+    // 같은 시각이면 나중에 넣은 행 (ConversionRule: 연락 시각 → contact_log_id 순, rows는 넣는 순서)
     const conv = within && rows.length ? rows.reduce((a, b) => (a.contacted_at > b.contacted_at ? a : b)) : null;
     for (const x of rows) {
       if (process.env.DUMMY_CONV_OUT) out.push(`${x.contact_group_id}|${x.method}|${x.result}|${x.pet_id}|${x === conv ? 1 : 0}`);
