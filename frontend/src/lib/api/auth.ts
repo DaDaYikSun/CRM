@@ -16,3 +16,8 @@ export function login(loginId: string, password: string): Promise<CurrentStaff> 
 export function fetchMe(): Promise<CurrentStaff> {
   return api.get<CurrentStaff>("/api/auth/me");
 }
+
+/** POST /api/auth/password — 새 비밀번호 정하기 (POL-ACC-010, #150). 조건에 안 맞으면 400 PASSWORD_RULE */
+export function changePassword(newPassword: string, idempotencyKey?: string): Promise<null> {
+  return api.post<null>("/api/auth/password", { newPassword }, { idempotencyKey });
+}
