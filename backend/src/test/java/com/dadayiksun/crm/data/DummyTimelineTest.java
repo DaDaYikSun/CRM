@@ -53,6 +53,20 @@ class DummyTimelineTest {
     }
 
     @Test
+    void 여러_아이를_합치면_같은_묶음_연락이_이어서_나온다() {
+        DummyTimeline.Event a1 = DummyTimeline.contact(Map.of("service_type", "GROOMING", "contacted_at", "2026-07-01 10:00:00",
+                "contact_group_id", "g1", "pet_id", "1"));
+        DummyTimeline.Event b = DummyTimeline.contact(Map.of("service_type", "VACCINE", "contacted_at", "2026-07-01 10:00:00",
+                "contact_group_id", "g0", "pet_id", "3"));
+        DummyTimeline.Event a2 = DummyTimeline.contact(Map.of("service_type", "GROOMING", "contacted_at", "2026-07-01 10:00:00",
+                "contact_group_id", "g1", "pet_id", "2"));
+        DummyTimeline.Event v = DummyTimeline.visit("VACCINE", Map.of("visit_date", "2026-07-01", "created_at", "2026-07-01 10:00:00",
+                "pet_id", "9"));
+
+        assertThat(DummyTimeline.merge(List.of(a1, b, a2, v))).containsExactly(v, b, a1, a2);
+    }
+
+    @Test
     void 방문_시각은_방문일에_입력_시각의_시분을_붙인다() {
         // 늦게 입력한 방문도 방문일 기준으로 줄을 선다
         DummyTimeline.Event late = visit("2026-07-01", "2026-07-05 16:20:00");
