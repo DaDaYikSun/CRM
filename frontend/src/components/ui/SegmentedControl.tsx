@@ -17,6 +17,9 @@ export interface SegmentedControlProps<T extends string> {
   disabled?: boolean;
 }
 
+// event.key는 string이라 문자열 키로 읽는다 (strict에서 인덱싱 오류 방지)
+const ARROW_STEP: Record<string, number | undefined> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+
 export function SegmentedControl<T extends string>({
   label,
   options,
@@ -26,7 +29,7 @@ export function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>) {
   // 라디오 패턴: 방향키로 이동(비활성 건너뜀 · 순환), 선택한 항목만 탭 순서에 둔다
   function move(event: KeyboardEvent<HTMLDivElement>) {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    const step = ARROW_STEP[event.key];
     if (!step || disabled) return;
     const enabled = options.filter((o) => !o.disabled);
     const current = enabled.findIndex((o) => o.value === value);

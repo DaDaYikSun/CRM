@@ -14,6 +14,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.dadayiksun.crm.auth.access.AuthTestSupport;
+import com.dadayiksun.crm.auth.domain.Role;
 import com.dadayiksun.crm.common.error.GlobalExceptionHandler;
 import com.dadayiksun.crm.common.security.JsonSecurityHandlers;
 import com.dadayiksun.crm.common.security.SecurityConfig;
@@ -36,7 +38,7 @@ class OptionControllerTest {
     void 품종은_기본_털_유형을_함께_주고_없으면_null() throws Exception {
         when(options.breeds()).thenReturn(List.of(new BreedOption(1L, "말티즈", 3L), new BreedOption(2L, "푸들", null)));
 
-        mvc.perform(get("/api/options/breeds"))
+        mvc.perform(get("/api/options/breeds").session(AuthTestSupport.session(Role.DESK)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].breedId").value(1))
                 .andExpect(jsonPath("$.data[0].name").value("말티즈"))
@@ -48,7 +50,7 @@ class OptionControllerTest {
     void 털_유형() throws Exception {
         when(options.coatTypes()).thenReturn(List.of(new CoatTypeOption(1L, "SHORT", "단모")));
 
-        mvc.perform(get("/api/options/coat-types"))
+        mvc.perform(get("/api/options/coat-types").session(AuthTestSupport.session(Role.DESK)))
                 .andExpect(jsonPath("$.data[0].coatTypeId").value(1))
                 .andExpect(jsonPath("$.data[0].code").value("SHORT"))
                 .andExpect(jsonPath("$.data[0].name").value("단모"));
@@ -58,7 +60,7 @@ class OptionControllerTest {
     void 접종_종류는_isMajor_이름으로() throws Exception {
         when(options.vaccineTypes()).thenReturn(List.of(new VaccineTypeOption(1L, "DHPPL", "종합백신", true)));
 
-        mvc.perform(get("/api/options/vaccine-types"))
+        mvc.perform(get("/api/options/vaccine-types").session(AuthTestSupport.session(Role.DESK)))
                 .andExpect(jsonPath("$.data[0].vaccineTypeId").value(1))
                 .andExpect(jsonPath("$.data[0].code").value("DHPPL"))
                 .andExpect(jsonPath("$.data[0].name").value("종합백신"))
