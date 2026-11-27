@@ -32,7 +32,7 @@ public final class ContactFakes {
         public ContactPanelResponse.TodayContact todayContact;
         public final List<HistoryRow> history = new ArrayList<>();
         public final List<OpenSchedule> open = new ArrayList<>();
-        public final List<PetContactRow> petHistory = new ArrayList<>();
+        public final List<HistoryRow> petHistory = new ArrayList<>();
         public LocalDate askedWeekEnd;
 
         @Override
@@ -62,8 +62,21 @@ public final class ContactFakes {
         }
 
         @Override
-        public List<PetContactRow> petHistory(long petId) {
+        public List<HistoryRow> petHistory(long petId) {
             return petHistory;
+        }
+
+        public final List<GroupItem> groupItems = new ArrayList<>();
+        public final java.util.Map<String, String> templates = new java.util.HashMap<>();
+
+        @Override
+        public List<GroupItem> groupItems(String contactGroupId) {
+            return groupItems;
+        }
+
+        @Override
+        public String messageTemplate(String templateCode) {
+            return templates.get(templateCode);
         }
 
         @Override
@@ -79,14 +92,26 @@ public final class ContactFakes {
         public void insert(Row row) {
             rows.add(row);
         }
+
+        public final List<MockSmsRow> mockSms = new ArrayList<>();
+
+        @Override
+        public void insertMockSms(MockSmsRow row) {
+            mockSms.add(row);
+        }
     }
 
     public static class FollowUp extends ContactFollowUpService {
         public final List<String> applied = new ArrayList<>();
 
+        public FollowUp() {
+            super(null, null, null, null, null);
+        }
+
         @Override
-        public void apply(String contactGroupId) {
+        public Outcome apply(String contactGroupId) {
             applied.add(contactGroupId);
+            return new Outcome(List.of(), null);
         }
     }
 }

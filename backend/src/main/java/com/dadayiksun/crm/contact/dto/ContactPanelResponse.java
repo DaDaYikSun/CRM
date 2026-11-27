@@ -22,8 +22,11 @@ public record ContactPanelResponse(Guardian guardian, TodayContact todayContact,
     public record Pet(long petId, String name, List<Item> items) {
     }
 
-    /** @param missed 저장된 누락 판정이 있는지만 본다 (K17, T13) */
+    /**
+     * @param missed          저장된 누락 판정이 있는지만 본다 (K17, T13)
+     * @param nextContactDate 그 주기의 다음 연락 예정일. 이 날 전에 다시 안 받으면 2일차가 아니다 (POL-TGT-006, PR #225 리뷰)
+     */
     public record Item(long scheduleId, String serviceType, String vaccineTypeName, LocalDate dueDate,
-                       boolean missed, int noAnswerCount) {
+                       boolean missed, int noAnswerCount, LocalDate nextContactDate) {
     }
 }

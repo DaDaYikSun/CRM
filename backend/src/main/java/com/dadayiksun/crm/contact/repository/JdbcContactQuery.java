@@ -56,7 +56,7 @@ public class JdbcContactQuery implements ContactQuery {
     public List<PanelItem> panelItems(long guardianId, LocalDate weekEnd) {
         return jdbc.query("""
                 SELECT s.schedule_id, s.pet_id, p.name AS pet_name, s.service_type, vt.name AS vaccine_type_name,
-                       s.due_date, s.missed_at, s.no_answer_count
+                       s.due_date, s.missed_at, s.no_answer_count, s.next_contact_date
                   FROM schedule s
                   JOIN pet p ON p.pet_id = s.pet_id
                   LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
@@ -66,7 +66,8 @@ public class JdbcContactQuery implements ContactQuery {
                 """, Map.of("id", guardianId, "weekEnd", Date.valueOf(weekEnd)), (rs, i) -> new PanelItem(
                 rs.getLong("pet_id"), rs.getString("pet_name"), new ContactPanelResponse.Item(
                 rs.getLong("schedule_id"), rs.getString("service_type"), rs.getString("vaccine_type_name"),
-                rs.getDate("due_date").toLocalDate(), rs.getDate("missed_at") != null, rs.getInt("no_answer_count"))));
+                rs.getDate("due_date").toLocalDate(), rs.getDate("missed_at") != null, rs.getInt("no_answer_count"),
+                rs.getDate("next_contact_date") == null ? null : rs.getDate("next_contact_date").toLocalDate())));
     }
 
     @Override
@@ -94,14 +95,21 @@ public class JdbcContactQuery implements ContactQuery {
         return n == null ? 0 : n;
     }
 
+    /** 지난 연락 · 아이 타임라인이 같이 쓰는 줄. 항목 이름은 접종이면 접종 종류 이름, 미용이면 '미용' (#223) */
+    private static final String HISTORY_SELECT = """
+            SELECT c.contact_log_id, c.contacted_at, c.method, c.result, c.talked_with, c.memo, st.name AS staff_name,
+                   c.created_by, c.is_edited, c.is_converted, c.is_mock_sms, p.name AS pet_name,
+                   CASE WHEN s.service_type = 'GROOMING' THEN '미용' ELSE vt.name END AS item_name
+              FROM contact_log c
+              JOIN staff st ON st.staff_id = c.created_by
+              JOIN pet p ON p.pet_id = c.pet_id
+              JOIN schedule s ON s.schedule_id = c.schedule_id
+              LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
+            """;
+
     @Override
     public List<HistoryRow> history(long guardianId, int limit, long offset) {
-        return jdbc.query("""
-                SELECT c.contact_log_id, c.contacted_at, c.method, c.result, c.talked_with, c.memo, st.name AS staff_name,
-                       c.created_by, c.is_edited, c.is_converted, c.is_mock_sms, p.name AS pet_name
-                  FROM contact_log c
-                  JOIN staff st ON st.staff_id = c.created_by
-                  JOIN pet p ON p.pet_id = c.pet_id
+        return jdbc.query(HISTORY_SELECT + """
                  WHERE c.guardian_id = :id
                  ORDER BY c.contacted_at DESC, c.contact_log_id DESC
                  LIMIT :limit OFFSET :offset
@@ -110,20 +118,11 @@ public class JdbcContactQuery implements ContactQuery {
     }
 
     @Override
-    public List<PetContactRow> petHistory(long petId) {
-        return jdbc.query("""
-                SELECT c.contact_log_id, c.contacted_at, c.method, c.result, c.talked_with, c.memo, st.name AS staff_name,
-                       c.created_by, c.is_edited, c.is_converted, c.is_mock_sms, p.name AS pet_name,
-                       s.service_type, vt.name AS vaccine_type_name
-                  FROM contact_log c
-                  JOIN staff st ON st.staff_id = c.created_by
-                  JOIN pet p ON p.pet_id = c.pet_id
-                  JOIN schedule s ON s.schedule_id = c.schedule_id
-                  LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
+    public List<HistoryRow> petHistory(long petId) {
+        return jdbc.query(HISTORY_SELECT + """
                  WHERE c.pet_id = :petId
                  ORDER BY c.contacted_at DESC, c.contact_log_id DESC
-                """, Map.of("petId", petId), (rs, i) -> new PetContactRow(historyRow(rs),
-                rs.getString("service_type"), rs.getString("vaccine_type_name")));
+                """, Map.of("petId", petId), (rs, i) -> historyRow(rs));
     }
 
     private static HistoryRow historyRow(ResultSet rs) throws SQLException {
@@ -131,7 +130,40 @@ public class JdbcContactQuery implements ContactQuery {
                 rs.getTimestamp("contacted_at").toLocalDateTime(), rs.getString("method"),
                 rs.getString("result"), rs.getString("talked_with"), rs.getString("memo"),
                 rs.getString("staff_name"), rs.getLong("created_by"), rs.getBoolean("is_edited"),
-                rs.getBoolean("is_converted"), rs.getBoolean("is_mock_sms"), rs.getString("pet_name"));
+                rs.getBoolean("is_converted"), rs.getBoolean("is_mock_sms"), rs.getString("pet_name"),
+                rs.getString("item_name"));
+    }
+
+    @Override
+    public List<GroupItem> groupItems(String contactGroupId) {
+        return jdbc.query("""
+                SELECT c.schedule_id, c.pet_id, p.name AS pet_name, c.guardian_id, g.phone, g.sms_agreed, c.result,
+                       c.next_contact_date, s.no_answer_count, s.contact_state, s.next_contact_date AS prev_next_contact_date,
+                       s.service_type, vt.name AS vaccine_type_name, s.due_date,
+                       c.contacted_at, c.created_by
+                  FROM contact_log c
+                  JOIN schedule s ON s.schedule_id = c.schedule_id
+                  JOIN pet p ON p.pet_id = c.pet_id
+                  JOIN guardian g ON g.guardian_id = c.guardian_id
+                  LEFT JOIN vaccine_type vt ON vt.vaccine_type_id = s.vaccine_type_id
+                 WHERE c.contact_group_id = :groupId AND c.is_mock_sms = 0
+                 ORDER BY c.contact_log_id
+                 FOR UPDATE OF s
+                """, Map.of("groupId", contactGroupId), (rs, i) -> new GroupItem(rs.getLong("schedule_id"),
+                rs.getLong("pet_id"), rs.getString("pet_name"), rs.getLong("guardian_id"), rs.getString("phone"),
+                rs.getBoolean("sms_agreed"), rs.getString("result"),
+                rs.getDate("next_contact_date") == null ? null : rs.getDate("next_contact_date").toLocalDate(),
+                rs.getInt("no_answer_count"), rs.getString("contact_state"),
+                rs.getDate("prev_next_contact_date") == null ? null : rs.getDate("prev_next_contact_date").toLocalDate(),
+                rs.getString("service_type"), rs.getString("vaccine_type_name"),
+                rs.getDate("due_date").toLocalDate(), rs.getTimestamp("contacted_at").toLocalDateTime(),
+                rs.getLong("created_by")));
+    }
+
+    @Override
+    public String messageTemplate(String templateCode) {
+        return jdbc.queryForObject("SELECT body FROM message_template WHERE template_code = :code",
+                Map.of("code", templateCode), String.class);
     }
 
     @Override

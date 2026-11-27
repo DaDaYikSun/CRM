@@ -1,6 +1,6 @@
 // S-04 연락 패널 규칙 (FR-CNT-001 · 002, POL-CNT-002 · 006, POL-TGT-006, 화면 설계 SCR-S04). 화면 그리기와 떼어 테스트한다.
 // 문구는 정책 4-2 · 4-4 글자 그대로.
-import type { ContactResult, PanelItem } from "@/lib/api/contact";
+import type { ContactResult, PanelItem, SaveContactFollowUp } from "@/lib/api/contact";
 import { addDays } from "@/lib/utils/date";
 
 export const RESULT_LABEL: Record<ContactResult, string> = {
@@ -20,6 +20,18 @@ export const COPY = {
 } as const;
 
 export const MEMO_MAX = 200;
+
+/**
+ * 저장 뒤 토스트 (정책 4-2, SCR-S04-07, #154). 2일차로 주기를 끝냈으면 '저장 성공' 대신 '2일차 마침' 하나만 띄운다.
+ * 문자를 못 보냈으면(커밋 뒤 실패, K21) '문자 발송 실패 (2일차)'.
+ */
+export function savedToast(followUp: SaveContactFollowUp): string {
+  if (followUp.closedScheduleIds.length === 0) return COPY.saved;
+  if (!followUp.mockSms) return "문자 없이 이번 주기 연락을 마쳤습니다.";
+  return followUp.mockSms.sent
+    ? "문자를 보낸 것으로 기록하고 이번 주기 연락을 마쳤습니다 (모의 발송)."
+    : "연락 결과는 저장했습니다. 안내 문자는 보내지 못했습니다. 필요하면 보호자에게 직접 연락해 주세요.";
+}
 
 /** 정책 4-2 '오늘 이미 연락함' (POL-CNT-006) */
 export function todayContactMessage(staffName: string, time: string): string {
@@ -43,14 +55,22 @@ export function secondDayCopy(smsAgreed: boolean): { notice: string; detail: str
 
 export type Results = Record<number, ContactResult | undefined>;
 
-// POL-TGT-006 고정값 (1일 뒤 다시, 2일차에 마침). 백엔드 ContactSaveService.NO_ANSWER_RETRY_DAYS와 같은 값
+// POL-TGT-006 고정값 (1일 뒤 다시, 2일차에 마침). 백엔드 contact/domain/FollowUpRule과 같은 값
 export const NO_ANSWER_RETRY_DAYS = 1;
 /** 이미 한 번 안 받은 항목(noAnswerCount = 1)에 다시 '전화 안 받음' = 2일차 */
 export const SECOND_DAY_PREV_NO_ANSWER = 1;
 
-/** 어제 이미 안 받은 항목에 다시 '전화 안 받음'을 골랐는지 → 저장 전에 2일차 확인 창 */
-export function isSecondDayNoAnswer(items: PanelItem[], results: Results): boolean {
-  return items.some((i) => i.noAnswerCount === SECOND_DAY_PREV_NO_ANSWER && results[i.scheduleId] === "NO_ANSWER");
+/**
+ * 오늘 다시 안 받으면 2일차인 항목: 한 번 안 받았고 다음 연락 예정일이 오늘이거나 지났다.
+ * 예정일 전(같은 날 오전 · 오후 등)에 다시 안 받으면 아직 1일차다. 서버 FollowUpRule과 같은 기준 (PR #225 리뷰)
+ */
+export function isSecondDayItem(item: PanelItem, today: string): boolean {
+  return item.noAnswerCount === SECOND_DAY_PREV_NO_ANSWER && (item.nextContactDate === null || item.nextContactDate <= today);
+}
+
+/** 2일차 항목에 다시 '전화 안 받음'을 골랐는지 → 저장 전에 2일차 확인 창 */
+export function isSecondDayNoAnswer(items: PanelItem[], results: Results, today: string): boolean {
+  return items.some((i) => isSecondDayItem(i, today) && results[i.scheduleId] === "NO_ANSWER");
 }
 
 /** 다음 연락 예정일 기본값: '전화 안 받음'이 하나라도 있으면 내일, 아니면 빈칸 (POL-TGT-006) */

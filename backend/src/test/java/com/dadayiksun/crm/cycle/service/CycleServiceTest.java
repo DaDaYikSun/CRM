@@ -363,6 +363,28 @@ class CycleServiceTest {
         }
 
         @Test
+        void 앱을_켤_때_마이그레이션으로_바뀐_규칙을_이미_있는_아이에게_반영한다() {
+            // V4 전: 광견병 첫 예정 생후 90일로 열린 주기 (2026-10-01 + 90 = 2026-12-30), 종합백신 규칙 없음
+            schedules.put(new Schedule(1, 1, ServiceType.VACCINE, RABIES, LocalDate.of(2026, 12, 30), Schedule.Status.OPEN,
+                    14, null, null, null, null, "NONE", 0, null));
+            // V4 뒤: 광견병 112일, 종합백신 2행
+            long dhppl = 1L;
+            source.rules.put(RABIES, List.of(new VaccineRule(PRIMARY, 112, 365, 365, 1), new VaccineRule(BOOSTER, 365, null, 365, null)));
+            source.rules.put(dhppl, List.of(new VaccineRule(PRIMARY, 42, 365, 14, 5), new VaccineRule(BOOSTER, 365, null, 365, null)));
+
+            new RuleRecalculationOnStartup(service).run(null);
+
+            assertThat(schedules.findById(1).orElseThrow().dueDate()).isEqualTo(LocalDate.of(2027, 1, 21));
+            // 기록 없는 새 종류: 첫 예정(생후 42일 = 11-12)이 등록일(오늘)보다 이르면 등록일
+            assertThat(open(1, ServiceType.VACCINE, dhppl).dueDate()).isEqualTo(TODAY);
+
+            int rows = schedules.rows.size();
+            new RuleRecalculationOnStartup(service).run(null); // 다시 켜도 바뀌는 것이 없다
+            assertThat(schedules.rows).hasSize(rows);
+            assertThat(schedules.findById(1).orElseThrow().dueDate()).isEqualTo(LocalDate.of(2027, 1, 21));
+        }
+
+        @Test
         void 프로필_바뀜_이벤트를_들으면_다시_계산한다() {
             schedules.put(new Schedule(1, 1, ServiceType.VACCINE, RABIES, LocalDate.of(2027, 1, 1), Schedule.Status.OPEN,
                     14, null, null, null, null, "NONE", 0, null));

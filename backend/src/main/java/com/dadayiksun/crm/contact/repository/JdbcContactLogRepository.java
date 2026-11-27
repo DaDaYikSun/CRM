@@ -26,4 +26,14 @@ public class JdbcContactLogRepository implements ContactLogRepository {
                 r.memo(), r.nextContactDate() == null ? null : Date.valueOf(r.nextContactDate()),
                 Timestamp.valueOf(r.contactedAt()), r.createdBy());
     }
+
+    @Override
+    public void insertMockSms(MockSmsRow r) {
+        jdbc.update("""
+                INSERT INTO contact_log (contact_group_id, guardian_id, pet_id, schedule_id, method, is_mock_sms,
+                                         sms_template, sms_body, contacted_at, created_by)
+                VALUES (?, ?, ?, ?, 'SMS', 1, ?, ?, ?, ?)
+                """, r.groupId(), r.guardianId(), r.petId(), r.scheduleId(), r.template(), r.body(),
+                Timestamp.valueOf(r.contactedAt()), r.createdBy());
+    }
 }
