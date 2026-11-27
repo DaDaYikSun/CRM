@@ -41,9 +41,10 @@ function ConversionTable({ caption, rows }: { caption: string; rows: ConversionR
 }
 
 export function MetricsSection() {
-  const [today] = useState(todayKst);
+  // 렌더할 때마다 다시 읽는다: 화면을 연 채로 자정을 넘겨도 날짜 칸의 max가 새 날짜를 쓴다 (PR #255 리뷰)
+  const today = todayKst();
   const [kind, setKind] = useState<PeriodKind>("month");
-  const [period, setPeriod] = useState<Period>(() => presetPeriod("month", today));
+  const [period, setPeriod] = useState<Period>(() => presetPeriod("month", todayKst()));
   const [draft, setDraft] = useState<Period>(period);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -71,13 +72,13 @@ export function MetricsSection() {
     if (next === "custom") {
       setDraft(period); // 지금 보고 있는 기간에서 고치기 시작한다
     } else {
-      setPeriod(presetPeriod(next, today));
+      setPeriod(presetPeriod(next, todayKst())); // 누른 순간의 한국 날짜
     }
   }
 
   function applyCustom(event: FormEvent) {
     event.preventDefault();
-    const error = customPeriodError(draft, today);
+    const error = customPeriodError(draft, todayKst());
     setDraftError(error);
     if (!error) setPeriod({ ...draft });
   }
