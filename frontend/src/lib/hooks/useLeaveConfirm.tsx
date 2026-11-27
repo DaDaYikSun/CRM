@@ -21,6 +21,11 @@ export function useLeaveConfirm(isDirty: boolean): { leaveDialog: ReactNode; con
   const dirty = useRef(isDirty);
   dirty.current = isDirty;
 
+  // 확인 창이 떠 있는 동안 저장이 끝나 입력이 없어지면 창을 닫는다 (잃을 것이 없다)
+  useEffect(() => {
+    if (!isDirty) setPending(null);
+  }, [isDirty]);
+
   useEffect(() => {
     if (!isDirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {

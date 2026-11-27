@@ -100,6 +100,8 @@
 
   --shadow-card: 0 4px 24px rgba(30, 40, 90, 0.05);
   --shadow-selected: 0 6px 16px rgba(67, 83, 255, 0.28);
+  /* 모달 · 확인 창 뒤 배경 (B-01 확인 창 · CMP-S07, #184) */
+  --bg-backdrop: rgba(27, 29, 42, 0.4);
 
   --control-height-sm: 40px;
   --control-height-md: 44px;

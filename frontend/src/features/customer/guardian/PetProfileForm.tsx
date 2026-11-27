@@ -101,14 +101,17 @@ export function PetProfileForm({
     }
   }
 
-  // 처음 값에서 바뀐 칸이 있으면 나가기 경고 (FR-COM-003, #184)
+  // 처음 값에서 바뀐 칸이 있으면 나가기 경고 (FR-COM-003, #184).
+  // 생년월일은 같은 날짜로 되돌려도 직접 입력했으면 저장 대상(추정 표시를 뗌)이라 바뀐 것으로 본다.
+  // 저장 중에도 경고를 둔다: 실패하면 입력이 남아야 한다. 성공하면 부르는 쪽이 폼을 닫는다.
   const dirty =
     name !== pet.name ||
     birthDate !== pet.birthDate ||
+    (birthTouched && Boolean(birthDate)) ||
     breedId !== String(pet.breedId) ||
     coatTypeId !== String(pet.coatTypeId) ||
     weight !== (pet.weightKg === null ? "" : String(pet.weightKg));
-  const { leaveDialog, confirmLeave } = useLeaveConfirm(dirty && !saving);
+  const { leaveDialog, confirmLeave } = useLeaveConfirm(dirty);
 
   return (
     <form onSubmit={(event) => { event.preventDefault(); void save(); }}>

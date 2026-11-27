@@ -57,7 +57,7 @@ export function StaffManagement() {
   const tempDialog = useRef<HTMLDivElement>(null);
   // 직원 추가 창에 입력한 칸이 있으면 나가기 경고 (FR-COM-003, #184)
   const addDirty = adding && JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
-  const { leaveDialog, confirmLeave } = useLeaveConfirm(addDirty && !saving);
+  const { leaveDialog, confirmLeave } = useLeaveConfirm(addDirty);
   const closeAdd = useCallback(() => {
     if (!saving) confirmLeave(() => setAdding(false));
   }, [saving, confirmLeave]);

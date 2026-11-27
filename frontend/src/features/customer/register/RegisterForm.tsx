@@ -52,6 +52,8 @@ const PHONE_CHECK_DELAY_MS = 400;
 export function RegisterForm({ initial }: { initial?: Partial<RegisterFormState> } = {}) {
   const router = useRouter();
   const [form, setForm] = useState<RegisterFormState>({ ...EMPTY_FORM, ...initial });
+  // 검색에서 넘어온 값으로 채운 처음 폼. 이것과 같으면 입력한 것이 없다 (나가기 경고, #184)
+  const [startForm] = useState(() => JSON.stringify({ ...EMPTY_FORM, ...initial }));
   const [mode, setMode] = useState<RegisterMode>({ kind: "new" });
   const [touched, setTouched] = useState<Set<RequiredField>>(new Set());
   const [serverErrors, setServerErrors] = useState<Partial<Record<RequiredField, string>>>({});
@@ -181,8 +183,8 @@ export function RegisterForm({ initial }: { initial?: Partial<RegisterFormState>
 
   const closeToast = useCallback(() => setToast(null), []);
   // 저장 전에 하나라도 입력했으면 나가기 경고 (FR-COM-003, #184). 저장이 끝나면(savedPetId) 경고하지 않는다
-  const dirty = savedPetId === null && (mode.kind === "existing" || JSON.stringify(form) !== JSON.stringify(EMPTY_FORM));
-  const { leaveDialog } = useLeaveConfirm(dirty);
+  const dirty = savedPetId === null && (mode.kind === "existing" || JSON.stringify(form) !== startForm);
+  const { leaveDialog, confirmLeave } = useLeaveConfirm(dirty);
 
   const showDuplicate =
     mode.kind === "new" && phoneMatches?.exists === true && acceptedPhone !== phoneDigits;
@@ -408,7 +410,7 @@ export function RegisterForm({ initial }: { initial?: Partial<RegisterFormState>
           )}
 
           <div className={styles.actions}>
-            <Button variant="secondary" onClick={() => router.back()}>
+            <Button variant="secondary" onClick={() => confirmLeave(() => router.back())}>
               취소
             </Button>
             <Button type="submit" loading={saving} disabled={!canSave(form, mode)}>

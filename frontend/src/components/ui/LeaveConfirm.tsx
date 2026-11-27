@@ -23,7 +23,7 @@ export function LeaveConfirm({ open, onStay, onLeave }: LeaveConfirmProps) {
   if (!open) return null;
   return (
     <div className={styles.backdrop}>
-      <div ref={dialog} className={styles.dialog} role="alertdialog" aria-modal="true" aria-describedby="leave-message">
+      <div ref={dialog} className={styles.dialog} role="alertdialog" aria-modal="true" aria-labelledby="leave-message">
         <p id="leave-message" className={styles.message}>
           {LEAVE_MESSAGE}
         </p>
