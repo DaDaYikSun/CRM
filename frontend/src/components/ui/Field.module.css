@@ -1,0 +1,89 @@
+/* TextField · Select · Checkbox · SegmentedControl 공용 모양 (컴포넌트 설계 3-2, #145에서 추가) */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+.label {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+}
+
+.required {
+  color: var(--status-danger-text);
+}
+
+.control {
+  min-height: var(--control-height-md);
+  padding: 0 var(--spacing-12);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-10);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-15);
+}
+
+.control:disabled {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+}
+
+/* 빠진 칸 빨갛게 (POL-ERR-003, CMP-S06: 2px 빨강) */
+.invalid {
+  border: 2px solid var(--border-error);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--font-size-13);
+  color: var(--status-danger-text);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-13);
+  color: var(--text-muted);
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-15);
+  cursor: pointer;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-10);
+  overflow: hidden;
+}
+
+.segment {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--spacing-16);
+  border: none;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-14);
+  cursor: pointer;
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--border-control);
+}
+
+.segmentSelected {
+  background: var(--action-primary);
+  color: var(--text-on-brand);
+}
+
+.segment:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
