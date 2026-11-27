@@ -173,6 +173,32 @@ class CycleServiceTest {
         }
 
         @Test
+        void 열린_주기가_없을_때_들어온_방문을_다시_처리해도_새_주기를_완료하지_않는다() {
+            // PR #202 리뷰: 열린 미용 주기가 없을 때 방문 → 새 OPEN만 연다. 같은 방문을 다시 처리하면 그 OPEN을 닫으면 안 된다
+            source.visits.add(new VisitInfo(22, 1, ServiceType.GROOMING, null, LocalDate.of(2026, 11, 24)));
+            CycleService.VisitOutcome first = service.onVisitRecorded(22);
+            Schedule opened = open(1, ServiceType.GROOMING, null);
+            assertThat(first.completedScheduleId()).isNull();
+            assertThat(opened.openedByVisitId()).isEqualTo(22L);
+            int rows = schedules.rows.size();
+
+            CycleService.VisitOutcome again = service.onVisitRecorded(22);
+
+            assertThat(again).isEqualTo(first);
+            assertThat(schedules.rows).hasSize(rows);
+            assertThat(schedules.findById(opened.scheduleId()).orElseThrow()).isEqualTo(opened);
+        }
+
+        @Test
+        void 방문으로_연_주기에만_그_방문을_남긴다() {
+            openWith(LocalDate.of(2026, 11, 1), null);
+            visit(10, LocalDate.of(2026, 11, 10));
+            assertThat(open(1, ServiceType.VACCINE, RABIES).openedByVisitId()).isEqualTo(10L);
+            // 방문과 다른 서비스(미용)로 같이 연 주기는 그 방문이 연 것이 아니다
+            assertThat(open(1, ServiceType.GROOMING, null).openedByVisitId()).isNull();
+        }
+
+        @Test
         void 같은_방문으로_다시_불려도_아무것도_바뀌지_않는다() {
             openWith(LocalDate.of(2026, 11, 1), null);
             CycleService.VisitOutcome first = visit(10, LocalDate.of(2026, 11, 10));

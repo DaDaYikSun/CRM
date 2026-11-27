@@ -23,7 +23,7 @@ public class JdbcScheduleRepository implements ScheduleRepository {
 
     private static final String COLUMNS = """
             schedule_id, pet_id, service_type, vaccine_type_id, due_date, status, miss_threshold_days,
-            done_visit_id, done_date, gap_days, missed_at, contact_state, no_answer_count, next_contact_date
+            done_visit_id, opened_by_visit_id, done_date, gap_days, missed_at, contact_state, no_answer_count, next_contact_date
             """;
 
     private final JdbcTemplate jdbc;
@@ -61,18 +61,20 @@ public class JdbcScheduleRepository implements ScheduleRepository {
     }
 
     @Override
-    public long insertOpen(long petId, ServiceType serviceType, Long vaccineTypeId, LocalDate dueDate, int missThresholdDays) {
+    public long insertOpen(long petId, ServiceType serviceType, Long vaccineTypeId, LocalDate dueDate, int missThresholdDays,
+                           Long openedByVisitId) {
         GeneratedKeyHolder keys = new GeneratedKeyHolder();
         jdbc.update(con -> {
             PreparedStatement ps = con.prepareStatement("""
-                    INSERT INTO schedule (pet_id, service_type, vaccine_type_id, due_date, status, miss_threshold_days)
-                    VALUES (?, ?, ?, ?, 'OPEN', ?)
+                    INSERT INTO schedule (pet_id, service_type, vaccine_type_id, due_date, status, miss_threshold_days, opened_by_visit_id)
+                    VALUES (?, ?, ?, ?, 'OPEN', ?, ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, petId);
             ps.setString(2, serviceType.name());
             ps.setObject(3, vaccineTypeId);
             ps.setDate(4, Date.valueOf(dueDate));
             ps.setInt(5, missThresholdDays);
+            ps.setObject(6, openedByVisitId);
             return ps;
         }, keys);
         return keys.getKey().longValue();
@@ -135,6 +137,7 @@ public class JdbcScheduleRepository implements ScheduleRepository {
                 Schedule.Status.valueOf(rs.getString("status")),
                 rs.getInt("miss_threshold_days"),
                 (Long) rs.getObject("done_visit_id", Long.class),
+                (Long) rs.getObject("opened_by_visit_id", Long.class),
                 date(rs, "done_date"),
                 (Integer) rs.getObject("gap_days", Integer.class),
                 date(rs, "missed_at"),

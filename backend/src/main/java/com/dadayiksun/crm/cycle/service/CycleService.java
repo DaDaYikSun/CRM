@@ -52,7 +52,7 @@ public class CycleService {
 
     /** '아이 등록됨' 뒤 첫 예정 일정 (접종 종류마다 + 미용) */
     public void createInitialSchedules(long petId) {
-        source.petProfile(petId).filter(PetProfile::active).ifPresent(pet -> plan(pet, false));
+        source.petProfile(petId).filter(PetProfile::active).ifPresent(pet -> plan(pet, false, null));
     }
 
     /**
@@ -66,10 +66,14 @@ public class CycleService {
                 .filter(s -> s.serviceType() == visit.serviceType() && Objects.equals(s.vaccineTypeId(), visit.vaccineTypeId()))
                 .toList();
 
-        // 같은 방문으로 다시 불리면 아무것도 하지 않는다 (uk_schedule_done_visit)
-        Optional<Schedule> already = history.stream().filter(s -> Objects.equals(s.doneVisitId(), visitId)).findFirst();
-        if (already.isPresent()) {
-            return new VisitOutcome(already.get().scheduleId(), openId(visit));
+        // 같은 방문으로 다시 불리면 아무것도 하지 않는다. 그 방문이 완료한 주기(done_visit_id)나
+        // 그 방문이 연 주기(opened_by_visit_id, V3)가 있으면 이미 처리했다 (열린 주기가 없던 방문도 알아본다, PR #202 리뷰)
+        Optional<Schedule> done = history.stream().filter(s -> Objects.equals(s.doneVisitId(), visitId)).findFirst();
+        if (done.isPresent()) {
+            return new VisitOutcome(done.get().scheduleId(), openId(visit));
+        }
+        if (history.stream().anyMatch(s -> Objects.equals(s.openedByVisitId(), visitId))) {
+            return new VisitOutcome(null, openId(visit));
         }
         // 방문일이 이미 완료된 주기의 완료일 이하이면 그 주기에 속한 늦은 입력 · 같은 날 두 번 입력이다.
         // 다음 주기는 건드리지 않고, 그 주기의 기준 안이면 저장한 판정만 지운다 (T16, DB 설계 5-1)
@@ -96,7 +100,7 @@ public class CycleService {
                     MissJudgement.gapDays(s.dueDate(), visit.visitDate()), missedAt);
             completed = s.scheduleId();
         }
-        source.petProfile(visit.petId()).filter(PetProfile::active).ifPresent(pet -> plan(pet, false));
+        source.petProfile(visit.petId()).filter(PetProfile::active).ifPresent(pet -> plan(pet, false, visit));
         return new VisitOutcome(completed, openId(visit));
     }
 
@@ -119,7 +123,7 @@ public class CycleService {
                     .forEach(s -> schedules.voidSchedule(s.scheduleId()));
             return;
         }
-        plan(pet, true);
+        plan(pet, true, null);
     }
 
     /** 규칙 저장 뒤: 쓰는 아이 모두 다시 계산 (#144 남은 질문 2: 저장 요청 안에서 한다, 400마리 규모) */
@@ -129,8 +133,9 @@ public class CycleService {
 
     /**
      * 열린 주기가 없는 종류는 새로 열고, recalc이면 아직 오지 않은 OPEN 행의 예정일을 고친다.
+     * visit이 있으면 그 방문의 서비스 · 종류로 새로 여는 주기에 opened_by_visit_id를 남긴다.
      */
-    private void plan(PetProfile pet, boolean recalc) {
+    private void plan(PetProfile pet, boolean recalc, VisitInfo visit) {
         LocalDate today = clock.today();
         int threshold = settings.getInt(SettingKey.MISS_THRESHOLD_DAYS);
         Map<Long, List<VaccineRule>> rulesByType = source.activeRulesByType();
@@ -139,7 +144,7 @@ public class CycleService {
             Long typeId = e.getKey();
             Optional<LocalDate> due = SchedulePlanner.nextVaccineDue(pet, e.getValue(),
                     source.visitDates(pet.petId(), ServiceType.VACCINE, typeId));
-            apply(pet.petId(), ServiceType.VACCINE, typeId, due, threshold, today, recalc);
+            apply(pet.petId(), ServiceType.VACCINE, typeId, due, threshold, today, recalc, openerOf(visit, ServiceType.VACCINE, typeId));
         }
         if (recalc) {
             // 규칙이 없어진(또는 쓰지 않는) 접종 종류의 아직 오지 않은 주기
@@ -152,16 +157,22 @@ public class CycleService {
         SchedulePlanner.GroomPlan groom = SchedulePlanner.nextGroom(pet,
                 source.visitDates(pet.petId(), ServiceType.GROOMING, null));
         schedules.saveGroomInterval(pet.petId(), groom.interval());
-        apply(pet.petId(), ServiceType.GROOMING, null, Optional.of(groom.dueDate()), threshold, today, recalc);
+        apply(pet.petId(), ServiceType.GROOMING, null, Optional.of(groom.dueDate()), threshold, today, recalc,
+                openerOf(visit, ServiceType.GROOMING, null));
+    }
+
+    private static Long openerOf(VisitInfo visit, ServiceType service, Long typeId) {
+        return visit != null && visit.serviceType() == service && Objects.equals(visit.vaccineTypeId(), typeId)
+                ? visit.visitId() : null;
     }
 
     private void apply(long petId, ServiceType service, Long typeId, Optional<LocalDate> computed, int threshold,
-                       LocalDate today, boolean recalc) {
+                       LocalDate today, boolean recalc, Long openedByVisitId) {
         // 다시 계산이 지난 날짜를 내면 오늘로 올린다. 다시 계산으로 지나간 누락이 생기지 않게 (POL-CYC-005, PR #202 리뷰 결정)
         Optional<LocalDate> due = recalc ? computed.map(d -> d.isBefore(today) ? today : d) : computed;
         Optional<Schedule> open = schedules.findOpen(petId, service, typeId);
         if (open.isEmpty()) {
-            due.ifPresent(d -> schedules.insertOpen(petId, service, typeId, d, threshold));
+            due.ifPresent(d -> schedules.insertOpen(petId, service, typeId, d, threshold, openedByVisitId));
             return;
         }
         Schedule s = open.get();

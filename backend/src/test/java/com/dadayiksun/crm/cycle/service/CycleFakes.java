@@ -70,41 +70,42 @@ final class CycleFakes {
         }
 
         @Override
-        public long insertOpen(long petId, ServiceType serviceType, Long vaccineTypeId, LocalDate dueDate, int threshold) {
+        public long insertOpen(long petId, ServiceType serviceType, Long vaccineTypeId, LocalDate dueDate, int threshold,
+                               Long openedByVisitId) {
             if (findOpen(petId, serviceType, vaccineTypeId).isPresent()) {
                 throw new IllegalStateException("active_key 중복");
             }
             long id = ++seq;
             rows.add(new Schedule(id, petId, serviceType, vaccineTypeId, dueDate, Schedule.Status.OPEN, threshold,
-                    null, null, null, null, "NONE", 0, null));
+                    null, openedByVisitId, null, null, null, "NONE", 0, null));
             return id;
         }
 
         @Override
         public void complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt) {
             replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), s.dueDate(),
-                    Schedule.Status.DONE, s.missThresholdDays(), visitId, doneDate, gapDays, missedAt,
+                    Schedule.Status.DONE, s.missThresholdDays(), visitId, s.openedByVisitId(), doneDate, gapDays, missedAt,
                     s.contactState(), s.noAnswerCount(), s.nextContactDate()));
         }
 
         @Override
         public void clearMissedAt(long scheduleId) {
             replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), s.dueDate(),
-                    s.status(), s.missThresholdDays(), s.doneVisitId(), s.doneDate(), s.gapDays(), null,
+                    s.status(), s.missThresholdDays(), s.doneVisitId(), s.openedByVisitId(), s.doneDate(), s.gapDays(), null,
                     s.contactState(), s.noAnswerCount(), s.nextContactDate()));
         }
 
         @Override
         public void updateDueDate(long scheduleId, LocalDate dueDate) {
             replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), dueDate,
-                    s.status(), s.missThresholdDays(), s.doneVisitId(), s.doneDate(), s.gapDays(), s.missedAt(),
+                    s.status(), s.missThresholdDays(), s.doneVisitId(), s.openedByVisitId(), s.doneDate(), s.gapDays(), s.missedAt(),
                     s.contactState(), s.noAnswerCount(), s.nextContactDate()));
         }
 
         @Override
         public void voidSchedule(long scheduleId) {
             replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), s.dueDate(),
-                    Schedule.Status.VOID, s.missThresholdDays(), s.doneVisitId(), s.doneDate(), s.gapDays(), s.missedAt(),
+                    Schedule.Status.VOID, s.missThresholdDays(), s.doneVisitId(), s.openedByVisitId(), s.doneDate(), s.gapDays(), s.missedAt(),
                     s.contactState(), s.noAnswerCount(), s.nextContactDate()));
         }
 
@@ -116,7 +117,7 @@ final class CycleFakes {
                         && s.dueDate().plusDays(s.missThresholdDays()).isBefore(today)) {
                     LocalDate judged = s.dueDate().plusDays(s.missThresholdDays() + 1L);
                     replace(s.scheduleId(), x -> new Schedule(x.scheduleId(), x.petId(), x.serviceType(), x.vaccineTypeId(),
-                            x.dueDate(), x.status(), x.missThresholdDays(), x.doneVisitId(), x.doneDate(), x.gapDays(),
+                            x.dueDate(), x.status(), x.missThresholdDays(), x.doneVisitId(), x.openedByVisitId(), x.doneDate(), x.gapDays(),
                             judged, x.contactState(), x.noAnswerCount(), x.nextContactDate()));
                     n++;
                 }
@@ -127,7 +128,7 @@ final class CycleFakes {
         @Override
         public void updateContact(long scheduleId, String contactState, int noAnswerCount, LocalDate nextContactDate) {
             replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), s.dueDate(),
-                    s.status(), s.missThresholdDays(), s.doneVisitId(), s.doneDate(), s.gapDays(), s.missedAt(),
+                    s.status(), s.missThresholdDays(), s.doneVisitId(), s.openedByVisitId(), s.doneDate(), s.gapDays(), s.missedAt(),
                     contactState, noAnswerCount, nextContactDate));
         }
 

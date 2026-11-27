@@ -24,7 +24,9 @@ public interface ScheduleRepository {
     /** 아이의 모든 주기, 예정일 순 */
     List<Schedule> findByPet(long petId);
 
-    long insertOpen(long petId, ServiceType serviceType, Long vaccineTypeId, LocalDate dueDate, int missThresholdDays);
+    /** openedByVisitId: 방문 뒤 다음 주기로 열 때 그 방문, 아니면 null */
+    long insertOpen(long petId, ServiceType serviceType, Long vaccineTypeId, LocalDate dueDate, int missThresholdDays,
+                    Long openedByVisitId);
 
     void complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt);
 
