@@ -114,6 +114,46 @@ class VaccineDueDateCalculatorTest {
         }
     }
 
+    /** V4(#207)로 넣은 확정 값: 종합백신 2행 · 광견병 첫 예정 112일 (접종 규칙 표 3장 · 1-1 6차 접종표) */
+    @Nested
+    @DisplayName("확정 규칙 (V4): 국내 6차 접종표")
+    class ConfirmedRules {
+
+        final List<VaccineRule> dhppl = List.of(
+                new VaccineRule(PRIMARY, 42, 365, 14, 5),
+                new VaccineRule(BOOSTER, 365, null, 365, null));
+        final List<VaccineRule> rabies = List.of(
+                new VaccineRule(PRIMARY, 112, 365, 365, 1),
+                new VaccineRule(BOOSTER, 365, null, 365, null));
+
+        @Test
+        void 종합백신_첫_예정은_생후_6주() {
+            assertThat(VaccineDueDateCalculator.firstDueDate(BIRTH, dhppl)).contains(LocalDate.of(2025, 2, 12));
+        }
+
+        @Test
+        void 종합백신_4차까지는_2주_뒤_5차를_채우면_1년_뒤() {
+            // 6차 접종표 1~5차: 생후 42 · 56 · 70 · 84 · 98일
+            List<LocalDate> four = List.of(LocalDate.of(2025, 2, 12), LocalDate.of(2025, 2, 26),
+                    LocalDate.of(2025, 3, 12), LocalDate.of(2025, 3, 26));
+            assertThat(VaccineDueDateCalculator.nextDueDate(BIRTH, dhppl, four)).contains(LocalDate.of(2025, 4, 9));
+
+            List<LocalDate> five = new java.util.ArrayList<>(four);
+            five.add(LocalDate.of(2025, 4, 9));
+            assertThat(VaccineDueDateCalculator.nextDueDate(BIRTH, dhppl, five)).contains(LocalDate.of(2026, 4, 9));
+        }
+
+        @Test
+        void 광견병_첫_예정은_생후_16주이고_6차_방문은_누락_기준_안() {
+            LocalDate due = VaccineDueDateCalculator.firstDueDate(BIRTH, rabies).orElseThrow();
+            assertThat(due).isEqualTo(LocalDate.of(2025, 4, 23));
+            // 6차 방문(생후 112일)은 예정일 당일이라 누락 기준(예정일 + 14일) 안
+            assertThat(MissJudgement.isWithinThreshold(LocalDate.of(2025, 4, 23), due, 14)).isTrue();
+            assertThat(VaccineDueDateCalculator.nextDueDate(BIRTH, rabies, List.of(LocalDate.of(2025, 4, 23))))
+                    .contains(LocalDate.of(2026, 4, 23));
+        }
+    }
+
     @Nested
     @DisplayName("K24 횟수 우선 · 광견병 예외")
     class DoseCountFirst {
