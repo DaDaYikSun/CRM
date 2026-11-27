@@ -153,12 +153,16 @@ export function RuleSettings() {
       if (!groups) ruleQuery.retry();
       if (!coats) coatQuery.retry();
     };
+    // 한쪽만 불러온 뒤 고친 입력이 있으면 링크를 막고 있으므로, 오류 화면에도 나가기 확인 창을 둔다 (PR #246 리뷰)
     return (
-      <ErrorState
-        message={loadFailure.message}
-        onRetry={loadFailure.retry ? retryBoth : undefined}
-        retrying={ruleQuery.loading || coatQuery.loading}
-      />
+      <>
+        {leaveDialog}
+        <ErrorState
+          message={loadFailure.message}
+          onRetry={loadFailure.retry ? retryBoth : undefined}
+          retrying={ruleQuery.loading || coatQuery.loading}
+        />
+      </>
     );
   }
 
