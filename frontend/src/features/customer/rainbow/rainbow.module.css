@@ -4,7 +4,7 @@
   z-index: 100;
   display: grid;
   place-items: center;
-  background: rgba(27, 29, 42, 0.4);
+  background: var(--bg-overlay);
 }
 
 .dialog {
