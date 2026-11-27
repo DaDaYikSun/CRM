@@ -1,5 +1,6 @@
 package com.dadayiksun.crm.admin.controller;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -115,6 +116,25 @@ class StaffAdminControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"loginId\":\"x1\",\"name\":\"x\",\"role\":\"ADMIN\"}"))
                     .andExpect(status().isForbidden());
+            mvc.perform(withCsrf(post("/api/admin/staff/7/reset-password")).session(AuthTestSupport.session(role)))
+                    .andExpect(status().isForbidden());
         }
+        verify(service, never()).resetPassword(7L);
+    }
+
+    @Test
+    void 비밀번호를_초기화하면_임시_비밀번호를_한_번_돌려준다() throws Exception {
+        when(service.resetPassword(7L)).thenReturn("Kq7mPx2wAb");
+        mvc.perform(withCsrf(post("/api/admin/staff/7/reset-password")).session(AuthTestSupport.session(Role.ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.tempPassword").value("Kq7mPx2wAb"));
+    }
+
+    @Test
+    void 없는_직원_초기화는_404() throws Exception {
+        when(service.resetPassword(99L)).thenThrow(new ApiException(ErrorCode.NOT_FOUND));
+        mvc.perform(withCsrf(post("/api/admin/staff/99/reset-password")).session(AuthTestSupport.session(Role.ADMIN)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
     }
 }

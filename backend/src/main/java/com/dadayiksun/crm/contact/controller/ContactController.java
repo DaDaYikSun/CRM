@@ -19,6 +19,7 @@ import com.dadayiksun.crm.contact.dto.SaveContactRequest;
 import com.dadayiksun.crm.contact.dto.SaveContactResponse;
 import com.dadayiksun.crm.contact.service.ContactPanelService;
 import com.dadayiksun.crm.contact.service.ContactSaveService;
+import com.dadayiksun.crm.contact.service.ContactSmsDispatcher;
 
 /**
  * 연락 패널 · 지난 연락 · 결과 저장 (S-04, C13, API 설계 3-6). 관리자 · 데스크만 쓴다.
@@ -29,10 +30,13 @@ public class ContactController {
 
     private final ContactPanelService panelService;
     private final ContactSaveService saveService;
+    private final ContactSmsDispatcher smsDispatcher;
 
-    public ContactController(ContactPanelService panelService, ContactSaveService saveService) {
+    public ContactController(ContactPanelService panelService, ContactSaveService saveService,
+                             ContactSmsDispatcher smsDispatcher) {
         this.panelService = panelService;
         this.saveService = saveService;
+        this.smsDispatcher = smsDispatcher;
     }
 
     @GetMapping("/api/guardians/{id}/contact-panel")
@@ -50,6 +54,7 @@ public class ContactController {
     @PostMapping("/api/contacts")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<SaveContactResponse> save(@RequestBody SaveContactRequest body, CurrentStaff staff) {
-        return ApiResponse.of(saveService.save(body, staff.staffId()));
+        // save가 돌아오면 커밋된 상태. 2일차 문자는 그 뒤에 보낸다 (K21)
+        return ApiResponse.of(smsDispatcher.sendAfterCommit(saveService.save(body, staff.staffId())));
     }
 }

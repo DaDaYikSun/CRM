@@ -75,4 +75,24 @@ class AuthSessionTest {
 
         AuthSession.end(new MockHttpServletRequest()); // 예외 없음
     }
+
+    @Test
+    void 로그인하면_비밀번호_해시_대신_표식을_두고_새_비밀번호를_정하면_바꾼다() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        AuthSession.start(request, DESK);
+        Object stamp = request.getSession(false).getAttribute(AuthSession.PASSWORD_STAMP);
+        assertThat(stamp).isInstanceOf(String.class).isNotEqualTo("x");
+        assertThat(AuthSession.passwordStampMatches(request, "x")).isTrue();
+        assertThat(AuthSession.passwordStampMatches(request, "y")).isFalse();
+
+        AuthSession.passwordChanged(request, "y");
+        assertThat(AuthSession.passwordStampMatches(request, "y")).isTrue();
+        assertThat(AuthSession.passwordStampMatches(request, "x")).isFalse();
+    }
+
+    @Test
+    void 표식이_없는_세션은_비밀번호가_다르다고_본다() {
+        // 표식 기능 전에 만든 세션: 배포 때 한 번 다시 로그인 (#183 리뷰)
+        assertThat(AuthSession.passwordStampMatches(requestWith(loggedInAt(Instant.now())), "x")).isFalse();
+    }
 }

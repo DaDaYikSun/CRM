@@ -30,7 +30,11 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>, open: boolean
       }
       if (event.key !== "Tab") return;
       const list = items();
-      if (list.length === 0) return;
+      // 저장 중처럼 버튼이 다 꺼졌으면 Tab으로 창 밖에 나가지 않게 그 자리에 둔다
+      if (list.length === 0) {
+        event.preventDefault();
+        return;
+      }
       const first = list[0];
       const last = list[list.length - 1];
       if (event.shiftKey && document.activeElement === first) {

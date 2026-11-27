@@ -33,7 +33,9 @@ import jakarta.servlet.http.HttpServletResponse;
  * 요청마다 직원 행을 다시 읽는다 (#150 리뷰): 비활성이거나 역할이 세션과 다르면 세션을 지우고 401.
  * 비활성화 · 역할 변경 때 세션을 지우는 것(StaffSessionTerminator)이 놓친 세션 — 그 기능 전에 만든 세션,
  * 로그인과 변경이 겹쳐 늦게 저장된 세션 — 도 다음 요청에서 막는다 (POL-ACC-004).
- * 새 비밀번호를 정했는지도 직원 행으로 본다. 같은 직원의 다른 세션도 바로 풀린다.
+ * 새 비밀번호를 정했는지도 직원 행으로 본다.
+ * 비밀번호가 로그인 때와 다르면(초기화 · 새 비밀번호) 세션을 지우고 401: 초기화와 로그인이 겹쳐
+ * 세션 지우기가 놓친 세션도 막는다 (POL-ACC-010, {@link AuthSession#PASSWORD_STAMP}, #183 리뷰).
  */
 @Component
 @Order(-50)
@@ -70,7 +72,8 @@ public class RoleAccessFilter extends OncePerRequestFilter {
         boolean mustChange = AuthSession.mustChangePassword(request);
         if (staff != null && staffs != null) {
             Staff row = staffs.findById(staff.staffId()).orElse(null);
-            if (row == null || !row.active() || row.role() != staff.role()) {
+            if (row == null || !row.active() || row.role() != staff.role()
+                    || !AuthSession.passwordStampMatches(request, row.passwordHash())) {
                 AuthSession.end(request);
                 staff = null;
             } else {

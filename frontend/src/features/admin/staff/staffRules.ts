@@ -10,6 +10,11 @@ export const STAFF_COPY = {
   tempPasswordGuide: "임시 비밀번호는 이 화면에서 한 번만 보입니다. 직원에게 전달하면 첫 로그인 때 새 비밀번호를 정하게 됩니다.",
 } as const;
 
+/** 정책 4-2 '비밀번호 초기화 확인 (B-01)' 확인 창 (#183) */
+export function resetConfirmMessage(name: string): string {
+  return `${name}의 비밀번호를 임시 비밀번호로 바꿉니다. 이 직원은 로그인해 둔 모든 기기에서 로그아웃됩니다.`;
+}
+
 /** 직원 추가 모달의 역할 순서: 데스크 / 미용사 / 관리자 (SCR-B01-02) */
 export const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "DESK", label: "데스크" },

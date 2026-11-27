@@ -13,6 +13,7 @@ export interface PanelItem {
   dueDate: string; // YYYY-MM-DD
   missed: boolean; // 저장된 누락 판정이 있는지
   noAnswerCount: number; // 1이면 다시 '전화 안 받음'일 때 2일차 확인 창
+  nextContactDate: string | null; // 이 날 전에 다시 안 받으면 아직 1일차 (POL-TGT-006, PR #225)
 }
 
 export interface ContactPanel {
@@ -62,9 +63,15 @@ export interface SaveContactInput {
   applyToHousehold: false; // 같은 집 일괄 적용은 초안 29
 }
 
+/** 결과별 후속 처리 (C14, #154). mockSms는 2일차로 끝낸 항목이 없거나 수신 동의가 없으면 null */
+export interface SaveContactFollowUp {
+  closedScheduleIds: number[];
+  mockSms: { sent: boolean; template: "VACCINE" | "GROOMING" } | null;
+}
+
 export interface SaveContactResult {
   contactGroupId: string;
-  followUp: unknown; // #154가 채운다
+  followUp: SaveContactFollowUp;
 }
 
 export function getContactPanel(guardianId: number): Promise<ContactPanel> {

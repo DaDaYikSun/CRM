@@ -1,5 +1,7 @@
 package com.dadayiksun.crm.auth.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -143,7 +145,7 @@ class AuthControllerTest {
         mvc.perform(withCsrf(post("/api/auth/password")).session(session)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"newPass99\"}"))
                 .andExpect(status().isOk());
-        verify(passwordService).change(5L, "newPass99");
+        verify(passwordService).change(eq(5L), eq("newPass99"), any());
         mvc.perform(get("/api/search").session(session)) // 막히지 않고 지나감 (이 시험에는 검색 Controller가 없어 404)
                 .andExpect(status().isNotFound());
     }
@@ -151,7 +153,7 @@ class AuthControllerTest {
     @Test
     void 조건에_안_맞는_새_비밀번호는_400_PASSWORD_RULE() throws Exception {
         MockHttpSession session = loginWithTemporaryPassword();
-        doThrow(new ApiException(ErrorCode.PASSWORD_RULE)).when(passwordService).change(5L, "short1");
+        doThrow(new ApiException(ErrorCode.PASSWORD_RULE)).when(passwordService).change(eq(5L), eq("short1"), any());
         mvc.perform(withCsrf(post("/api/auth/password")).session(session)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"newPassword\":\"short1\"}"))
                 .andExpect(status().isBadRequest())

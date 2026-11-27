@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatLastLogin, isValidPassword, staffFormErrors, statusLabel } from "./staffRules";
+import { formatLastLogin, isValidPassword, resetConfirmMessage, staffFormErrors, statusLabel } from "./staffRules";
 
 describe("B-01 직원 관리 규칙", () => {
+  it("비밀번호 초기화 확인 창은 정책 4-2 문구에 이름을 넣는다", () => {
+    expect(resetConfirmMessage("김데스크")).toBe(
+      "김데스크의 비밀번호를 임시 비밀번호로 바꿉니다. 이 직원은 로그인해 둔 모든 기기에서 로그아웃됩니다.",
+    );
+  });
+
   it("필수 칸이 비면 정책 4-2 문구", () => {
     expect(staffFormErrors({ name: "", loginId: " ", role: "" })).toEqual({
       name: "이름을(를) 입력해 주세요.",

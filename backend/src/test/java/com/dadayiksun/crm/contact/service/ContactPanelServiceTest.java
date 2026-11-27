@@ -38,7 +38,7 @@ class ContactPanelServiceTest {
 
     private static PanelItem item(long petId, String petName, long scheduleId, int noAnswer) {
         return new PanelItem(petId, petName, new ContactPanelResponse.Item(scheduleId, "VACCINE", "종합백신",
-                LocalDate.of(2026, 11, 24), false, noAnswer));
+                LocalDate.of(2026, 11, 24), false, noAnswer, null));
     }
 
     private static HistoryRow history(long id, LocalDateTime at, String method, String result, String talkedWith,

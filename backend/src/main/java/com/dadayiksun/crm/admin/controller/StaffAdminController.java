@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dadayiksun.crm.admin.dto.CreateStaffRequest;
 import com.dadayiksun.crm.admin.dto.CreateStaffResponse;
+import com.dadayiksun.crm.admin.dto.ResetPasswordResponse;
 import com.dadayiksun.crm.admin.dto.StaffItem;
 import com.dadayiksun.crm.admin.dto.UpdateStaffRequest;
 import com.dadayiksun.crm.auth.access.AdminOnly;
@@ -23,7 +24,7 @@ import com.dadayiksun.crm.common.response.ApiResponse;
 import jakarta.validation.Valid;
 
 /**
- * B-01 직원 관리 (FR-ADM-001, 계약 C16, API 설계 3-10). 관리자만 (FR-AUTH-002, NFR-SEC-002).
+ * B-01 직원 관리 (FR-ADM-001 · FR-ADM-007, 계약 C16, API 설계 3-10). 관리자만 (FR-AUTH-002, NFR-SEC-002).
  * 화면용 Controller만 둔다. 저장 규칙은 auth의 {@link StaffAccountService} (팀 결정 K14, API 설계 4-2).
  */
 @RestController
@@ -53,5 +54,11 @@ public class StaffAdminController {
     public ApiResponse<Void> update(@PathVariable Long staffId, @RequestBody UpdateStaffRequest body) {
         staffAccountService.update(staffId, body.role(), body.isActive());
         return ApiResponse.of(null);
+    }
+
+    /** 비밀번호 초기화 (FR-ADM-007, #183). 임시 비밀번호는 이 응답에서만 한 번 보인다. */
+    @PostMapping("/{staffId}/reset-password")
+    public ApiResponse<ResetPasswordResponse> resetPassword(@PathVariable Long staffId) {
+        return ApiResponse.of(new ResetPasswordResponse(staffAccountService.resetPassword(staffId)));
     }
 }

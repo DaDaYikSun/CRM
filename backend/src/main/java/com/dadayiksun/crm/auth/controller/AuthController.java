@@ -58,8 +58,9 @@ public class AuthController {
     @PostMapping("/password")
     public ApiResponse<Void> changePassword(CurrentStaff current, @Valid @RequestBody ChangePasswordRequest body,
             HttpServletRequest request) {
-        passwordService.change(current.staffId(), body.newPassword());
-        AuthSession.passwordChanged(request);
+        String newHash = passwordService.change(current.staffId(), body.newPassword(),
+                AuthSession.passwordStampOf(request));
+        AuthSession.passwordChanged(request, newHash);
         return ApiResponse.of(null);
     }
 

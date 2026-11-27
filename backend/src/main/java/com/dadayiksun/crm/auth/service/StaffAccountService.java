@@ -17,7 +17,7 @@ import com.dadayiksun.crm.common.error.ErrorCode;
 import com.dadayiksun.crm.common.time.KstClock;
 
 /**
- * 직원 계정 관리 (FR-ADM-001, POL-ACC-001 · 003 · 004 · 010, 계약 C16).
+ * 직원 계정 관리 (FR-ADM-001 · FR-ADM-007, POL-ACC-001 · 003 · 004 · 010, 계약 C16).
  * 저장 규칙(아이디 중복, 임시 비밀번호, 해시, 비활성화, 세션 지우기)은 값의 주인인 auth가 가진다.
  * admin 패키지는 화면용 Controller만 둔다 (팀 결정 K14, API 설계 3-10 · 4-2).
  */
@@ -86,5 +86,19 @@ public class StaffAccountService {
         if (endSessions) {
             sessionTerminator.terminateAll(staffId);
         }
+    }
+
+    /**
+     * 비밀번호 초기화 (FR-ADM-007, POL-ACC-010, #183). 새 임시 비밀번호를 만들어 해시만 저장하고,
+     * 다음 로그인 때 새 비밀번호를 정하게 표시한 뒤, 그 직원이 로그인해 둔 세션을 모두 지운다 (11/25 회의 R5).
+     * 임시 비밀번호는 이 반환값에서 한 번만 돌려준다. 없는 직원은 404 NOT_FOUND.
+     */
+    @Transactional
+    public String resetPassword(Long staffId) {
+        staffRepository.findById(staffId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
+        String tempPassword = PasswordRule.newTemporaryPassword();
+        staffRepository.updatePassword(staffId, passwordEncoder.encode(tempPassword), true);
+        sessionTerminator.terminateAll(staffId);
+        return tempPassword;
     }
 }
