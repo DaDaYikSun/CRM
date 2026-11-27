@@ -50,10 +50,11 @@ public class SearchRepository {
         if (rows.isEmpty()) {
             return rows;
         }
-        // 같은 집 다른 아이 이름 (siblingNames). 결과 보호자들 것을 한 번에 읽는다
+        // 같은 집 다른 아이 이름 (siblingNames). 결과 보호자들 것을 한 번에 읽는다.
+        // 무지개다리 아이는 뺀다: 떠난 아이를 살아 있는 아이처럼 보여 주지 않게 (표시는 초안 21에서 다시 정한다)
         List<Long> guardianIds = rows.stream().map(SearchItem::guardianId).distinct().toList();
         Map<Long, List<Sibling>> byGuardian = new HashMap<>();
-        jdbc.query("SELECT guardian_id, pet_id, name FROM pet WHERE guardian_id IN (:ids) ORDER BY pet_id",
+        jdbc.query("SELECT guardian_id, pet_id, name FROM pet WHERE guardian_id IN (:ids) AND status = 'ACTIVE' ORDER BY pet_id",
                 new MapSqlParameterSource("ids", guardianIds),
                 rs -> {
                     byGuardian.computeIfAbsent(rs.getLong("guardian_id"), k -> new ArrayList<>())
