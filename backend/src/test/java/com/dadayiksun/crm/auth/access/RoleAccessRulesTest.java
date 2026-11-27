@@ -101,6 +101,8 @@ class RoleAccessRulesTest {
     void 로그인_전에_열린_주소는_둘뿐() {
         assertThat(RoleAccessRules.isPublic("POST", "/api/auth/login")).isTrue();
         assertThat(RoleAccessRules.isPublic("GET", "/api/csrf")).isTrue();
+        assertThat(RoleAccessRules.isPublic("POST", "/api/auth/logout")).isTrue();
+        assertThat(RoleAccessRules.isPublic("GET", "/api/auth/logout")).isFalse();
         assertThat(RoleAccessRules.isPublic("GET", "/api/auth/me")).isFalse();
         assertThat(RoleAccessRules.isPublic("GET", "/api/auth/login")).isFalse();
     }

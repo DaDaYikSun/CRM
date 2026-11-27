@@ -10,6 +10,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { TextField } from "@/components/ui/TextField";
 import { Toast } from "@/components/ui/Toast";
 import { ApiError, LOAD_FAILED_MESSAGE, newIdempotencyKey } from "@/lib/api/client";
+import { saveFailure } from "@/lib/api/failure";
 import {
   fetchCurrentRole,
   fetchGuardianDetail,
@@ -135,7 +136,7 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
       setEditing(false);
       setToast(GUARDIAN_SAVED_TOAST);
     } catch (e) {
-      setSaveError(e instanceof ApiError ? e.message : LOAD_FAILED_MESSAGE);
+      setSaveError(saveFailure(e).message);
     } finally {
       setSaving(false);
     }
@@ -152,7 +153,7 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
       setToast(REVERTED_TOAST);
       load();
     } catch (e) {
-      setRevertError(e instanceof ApiError ? e.message : LOAD_FAILED_MESSAGE);
+      setRevertError(saveFailure(e).message);
     }
   }
 

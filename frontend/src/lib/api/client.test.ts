@@ -64,4 +64,24 @@ describe("client", () => {
     expect(error.message).toBe(SAVE_FAILED_MESSAGE);
     expect(fetcher.mock.calls.filter(([path]) => path === "/api/contacts")).toHaveLength(0);
   });
+
+  it("401 SESSION_EXPIRED면 만료 처리를 부르고 오류는 그대로 던진다 (#167)", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(json(401, { error: { code: "SESSION_EXPIRED", message: "다시 로그인해 주세요." } }));
+    const onExpired = vi.fn();
+    const error = (await createClient(fetcher, onExpired).get("/api/targets").catch((e) => e)) as ApiError;
+    expect(error.code).toBe("SESSION_EXPIRED");
+    expect(onExpired).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(1); // 4xx라 다시 부르지 않음
+  });
+
+  it("다른 오류에는 만료 처리를 부르지 않는다", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(json(401, { error: { code: "LOGIN_FAILED", message: "아이디 또는 비밀번호가 맞지 않습니다." } }));
+    const onExpired = vi.fn();
+    await createClient(fetcher, onExpired).post("/api/auth/login", {}).catch(() => undefined);
+    expect(onExpired).not.toHaveBeenCalled();
+  });
 });

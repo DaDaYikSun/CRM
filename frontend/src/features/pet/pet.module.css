@@ -1,0 +1,133 @@
+/* S-07 아이 상세 (#149) */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-20);
+  max-width: 880px;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.tab {
+  padding: var(--spacing-6) var(--spacing-12);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--font-size-14);
+}
+
+.tabCurrent {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+  font-weight: var(--font-semibold);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: var(--spacing-20) var(--spacing-24);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.rainbow {
+  background: var(--bg-subtle);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-20);
+  font-weight: var(--font-bold);
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--font-size-14);
+  color: var(--text-secondary);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-16);
+  font-weight: var(--font-semibold);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-15);
+}
+
+.missedDate {
+  color: var(--status-danger-text);
+  font-weight: var(--font-semibold);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 96px 56px 1fr auto;
+  gap: var(--spacing-12);
+  align-items: baseline;
+  padding: var(--spacing-10) 0;
+  border-bottom: 1px solid var(--border-default);
+  font-size: var(--font-size-14);
+}
+
+.lineWho {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.memo {
+  display: block;
+  color: var(--text-secondary);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--font-size-13);
+  color: var(--text-muted);
+}
+
+/* 첫 조회 중 자리 (문구 없음) */
+.skeleton {
+  min-height: 160px;
+  max-width: 880px;
+  border-radius: var(--radius-12);
+  background: var(--bg-subtle);
+}

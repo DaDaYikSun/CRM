@@ -1,19 +1,22 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ApiError, LOAD_FAILED_MESSAGE } from "@/lib/api/client";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { PageGuide } from "@/components/ui/PageGuide";
+import { loadFailure, type Failure } from "@/lib/api/failure";
 import { getTargetSummary, getTargets, type TargetLine, type TargetSummary, type TargetTab } from "@/lib/api/target";
 import { todayKst } from "@/lib/utils/date";
 import { TargetRow } from "@/features/target/TargetRow";
 import styles from "@/features/target/target.module.css";
+import { ContactPanel } from "@/features/contact/ContactPanel";
+import contactStyles from "@/features/contact/contact.module.css";
 import type { PageData } from "@/types/common";
 
 // S-03 연락 대상 목록 (FR-TGT-001 ~ 003). 문구는 정책 4-2 · 4-4, 배치는 화면 설계 SCR-S03.
 // 오늘 · 이번 주는 서버가 한국 시간으로 판단한다 (POL-TGT-001). ?tab= 으로 탭을 연다 (대시보드 카드 #156).
-// 줄을 누르면 오른쪽에 연락 패널(S-04, #153)이 열린다. 이 이슈는 줄 선택까지만 한다.
-const GUIDE = "예정일이 된 아이를 보호자 단위로 묶었습니다. 줄을 누르면 오른쪽에서 연락 결과를 남깁니다.";
+// 줄을 누르면 목록을 그대로 두고 오른쪽에 연락 패널(S-04, #153)이 열린다. 저장하면 목록 · 탭 숫자를 다시 부른다.
 const EMPTY: Record<TargetTab, string> = {
   today: "오늘 연락할 아이가 없습니다. 이번 주 탭에서 미리 연락할 수 있습니다.",
   week: "이번 주 연락할 아이가 없습니다.",
@@ -40,29 +43,40 @@ function Targets() {
   const page = Math.max(1, Number(params.get("page")) || 1);
   const [data, setData] = useState<PageData<TargetLine> | null>(null);
   const [summary, setSummary] = useState<TargetSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // [다시 시도]를 누르면 그 버튼이 사라지므로 포커스를 제목으로 옮겨 잃지 않게 한다 (PR #213 리뷰)
+  const retry = () => {
+    heading.current?.focus();
+    setAttempt((n) => n + 1);
+  };
   const [selected, setSelected] = useState<number | null>(null);
+  const [reload, setReload] = useState(0);
   const today = todayKst();
+
+  // 탭 · 쪽이 바뀌면 이전 줄을 바로 비운다. 저장 뒤 다시 부를 때(reload)는 비우지 않아 목록이 깜빡이지 않는다
+  useEffect(() => setData(null), [tab, page]);
 
   useEffect(() => {
     let stale = false;
-    setData(null);
     setError(null);
-    Promise.all([getTargets(tab, page), getTargetSummary()])
-      .then(([list, sum]) => {
-        if (stale) return;
-        setData(list);
-        setSummary(sum);
-      })
+    getTargets(tab, page)
+      .then((list) => !stale && setData(list))
       .catch((e: unknown) => {
         if (stale) return;
-        // 권한 없음(403)은 서버 문구 그대로 (T10 · T11), 그 밖은 조회 실패 (POL-ERR-001)
-        setError(e instanceof ApiError && e.status === 403 ? e.message : LOAD_FAILED_MESSAGE);
+        setData(null);
+        // 권한 없음(403)은 서버 문구 그대로 (T10 · T11), 그 밖은 조회 실패 + [다시 시도] (POL-ERR-001, #168)
+        setError(loadFailure(e));
       });
+    // 탭 숫자만 쓰므로 요약이 실패해도 목록은 보인다 (숫자만 비움)
+    getTargetSummary()
+      .then((sum) => !stale && setSummary(sum))
+      .catch(() => !stale && setSummary(null));
     return () => {
       stale = true;
     };
-  }, [tab, page]);
+  }, [tab, page, reload, attempt]);
 
   const href = (t: TargetTab, p = 1) => `/targets?tab=${t}${p > 1 ? `&page=${p}` : ""}`;
   // 마지막보다 큰 페이지는 items가 비고 total만 온다 (K16 ⑥). 범위는 받은 줄이 있을 때만 보인다
@@ -70,10 +84,12 @@ function Targets() {
   const from = hasRows ? (data.page - 1) * data.size + 1 : 0;
   const to = hasRows ? from + data.items.length - 1 : 0;
 
-  return (
+  const list = (
     <section>
-      <h1>연락 대상</h1>
-      <p className={styles.guide}>{GUIDE}</p>
+      <h1 ref={heading} tabIndex={-1}>
+        연락 대상
+      </h1>
+      <PageGuide screen="S-03" />
       <nav className={styles.tabs} aria-label="연락 대상 탭">
         {TABS.map((t) => {
           const count = tabCount(summary, t.value);
@@ -90,7 +106,9 @@ function Targets() {
           );
         })}
       </nav>
-      {error && <p className={styles.error}>{error}</p>}
+      {error && (
+        <ErrorState message={error.message} onRetry={error.retry ? retry : undefined} />
+      )}
       {data && !hasRows && data.total === 0 && <p className={styles.empty}>{EMPTY[tab]}</p>}
       {data && hasRows && (
         <>
@@ -120,6 +138,15 @@ function Targets() {
         </nav>
       )}
     </section>
+  );
+
+  if (selected === null) return list;
+  return (
+    <div className={contactStyles.split}>
+      {list}
+      {/* key: 보호자가 바뀌면 패널을 새로 만들어 이전 보호자의 정보 · 입력 · 늦게 끝난 저장이 섞이지 않게 한다 */}
+      <ContactPanel key={selected} guardianId={selected} onSaved={() => setReload((n) => n + 1)} onClose={() => setSelected(null)} />
+    </div>
   );
 }
 
