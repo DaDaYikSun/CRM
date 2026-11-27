@@ -15,7 +15,7 @@ import com.dadayiksun.crm.target.service.TargetQueryService;
 
 /**
  * 연락 대상 목록 (S-03, C11, API 설계 3-6). 관리자 · 데스크만 쓴다.
- * 미용사 403(NFR-SEC-002, POL-ACC-011)은 역할 검사(#143)가 들어오면 이 주소에 건다.
+ * 미용사 403(NFR-SEC-002, POL-ACC-011)은 역할 검사(#143 RoleAccessFilter)의 기본 규칙이 막는다 (TargetAccessTest).
  */
 @RestController
 @RequestMapping("/api/targets")
