@@ -14,6 +14,18 @@ import { saveFailure, type Failure } from "@/lib/api/failure";
 //   const { save, saving, failure } = useSave();
 //   const onSubmit = () => save((key) => createGuardian(input, key), input).then((r) => r && router.push(...));
 //   {failure && <ErrorState message={failure.message} onRetry={failure.retry ? onSubmit : undefined} retrying={saving} />}
+const UNCOMPARABLE = "\u0000uncomparable";
+
+/** 입력을 비교용 문자열로. 없으면 null, BigInt · 순환 참조처럼 JSON으로 못 바꾸면 UNCOMPARABLE (예외를 밖으로 내지 않는다) */
+function fingerprintOf(input: unknown): string | null {
+  if (input === undefined) return null;
+  try {
+    return JSON.stringify(input);
+  } catch {
+    return UNCOMPARABLE;
+  }
+}
+
 export function useSave() {
   const key = useRef<string>(newIdempotencyKey());
   /** 지금 키로 보낸 입력 (JSON). 다른 입력이면 키를 새로 만든다 */
@@ -26,8 +38,11 @@ export function useSave() {
   const save = useCallback(
     async <T>(request: (idempotencyKey: string) => Promise<T>, input?: unknown): Promise<T | undefined> => {
       if (busy.current) return undefined;
-      const fingerprint = input === undefined ? null : JSON.stringify(input);
-      if (keyInput.current !== null && fingerprint !== keyInput.current) key.current = newIdempotencyKey();
+      const fingerprint = fingerprintOf(input);
+      // 비교할 수 없는 입력(직렬화 실패)이면 늘 새 키: 옛 응답을 잘못 돌려받는 것보다 안전하다 (PR #213 리뷰)
+      if (fingerprint === UNCOMPARABLE || (keyInput.current !== null && fingerprint !== keyInput.current)) {
+        key.current = newIdempotencyKey();
+      }
       keyInput.current = fingerprint;
       busy.current = true;
       setSaving(true);
