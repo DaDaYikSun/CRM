@@ -11,6 +11,9 @@ public interface ContactLogRepository {
     /** 2일차 안내 문자 모의 발송 기록 한 행 (POL-TGT-006, POL-CNT-005). 연락 결과와 같은 트랜잭션 (K21) */
     void insertMockSms(MockSmsRow row);
 
+    /** 재방문 전환 표시 (FR-CNT-004, DB 설계 5-3): 그 연락 행만 is_converted = 1, converted_visit_id */
+    void markConverted(long contactLogId, long visitId);
+
     /** result는 없고 method = SMS. 보낸 문구 원문을 남긴다 (DB 설계 4-11 sms_body) */
     record MockSmsRow(String groupId, long guardianId, long petId, long scheduleId, String template, String body,
                       LocalDateTime contactedAt, long createdBy) {

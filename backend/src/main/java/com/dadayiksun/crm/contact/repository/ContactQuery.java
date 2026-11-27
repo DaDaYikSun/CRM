@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.dadayiksun.crm.contact.domain.ConversionRule;
 import com.dadayiksun.crm.contact.dto.ContactPanelResponse;
 
 /**
@@ -39,6 +40,16 @@ public interface ContactQuery {
      * 그 주기(schedule) 행을 트랜잭션 끝까지 잠근다: 같은 항목에 동시에 온 저장이 횟수를 덮어쓰거나 2일차 문자를 두 번 남기지 않게
      */
     List<GroupItem> groupItems(String contactGroupId);
+
+    /** 그 방문이 완료시킨 주기와 방문일 (전환 판정 C14, DB 설계 5-3). 그 방문으로 완료된 주기가 없으면 빈 값 */
+    Optional<CompletedSchedule> completedBy(long visitId);
+
+    /** 그 주기에 남긴 연락들 (모의 발송 행 포함, 전환 판정 C14) */
+    List<ConversionRule.Contact> contactsOf(long scheduleId);
+
+    /** @param missThresholdDays 주기를 만들 때 복사한 누락 기준 (POL-MISS-001 · 005) */
+    record CompletedSchedule(long scheduleId, LocalDate dueDate, int missThresholdDays, LocalDate visitDate) {
+    }
 
     /** 지금 쓰는 문자 문구 (message_template, 정책 4-3, FR-ADM-008). code = VACCINE · GROOMING */
     String messageTemplate(String templateCode);
