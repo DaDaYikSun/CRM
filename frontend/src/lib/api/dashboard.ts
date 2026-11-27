@@ -36,3 +36,35 @@ export function getMetrics(from?: string, to?: string): Promise<Metrics> {
   const query = q.toString();
   return api.get<Metrics>(`/api/dashboard/metrics${query ? `?${query}` : ""}`);
 }
+
+/** 재방문율 추이 한 주 (FR-DASH-007, #185). 대상이 없는 주는 rate = null이라 선을 끊는다 */
+export interface TrendWeek {
+  weekStart: string; // 월요일 YYYY-MM-DD
+  vaccineRevisit: Ratio;
+  groomingRevisit: Ratio;
+  vaccineMiss: Ratio;
+}
+
+/** 예정일 대비 실제 방문 분포, 주기 수 (FR-DASH-008). 누락 판정이 저장된 주기는 missed에만 */
+export interface VisitBuckets {
+  early: number;
+  late0to7: number;
+  late8plus: number;
+  missed: number;
+}
+
+export interface Trends {
+  from: string;
+  to: string;
+  weeks: TrendWeek[];
+  distribution: { vaccine: VisitBuckets; grooming: VisitBuckets };
+}
+
+/** 기간 규칙은 getMetrics와 같다 (#176) */
+export function getTrends(from?: string, to?: string): Promise<Trends> {
+  const q = new URLSearchParams();
+  if (from) q.set("from", from);
+  if (to) q.set("to", to);
+  const query = q.toString();
+  return api.get<Trends>(`/api/dashboard/trends${query ? `?${query}` : ""}`);
+}

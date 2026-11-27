@@ -142,3 +142,77 @@
   font-size: var(--font-size-13);
   margin-top: var(--spacing-8);
 }
+
+/* 기간 선택 (FR-DASH-005, #176) */
+.periodPicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-12);
+  margin: var(--spacing-8) 0;
+}
+
+.periodGuide {
+  color: var(--text-muted);
+  font-size: var(--font-size-13);
+}
+
+.periodForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-12);
+  margin: 0 0 var(--spacing-12);
+}
+
+/* 재방문율 추이 · 방문 분포 (FR-DASH-007 · 008, #185). 색은 TKN-C13~C15 계열 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-12);
+  margin: 0 0 var(--spacing-8);
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-6);
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+}
+
+.gridLine {
+  stroke: var(--border-default);
+  stroke-width: 1;
+}
+
+.axisText {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+/* 화면에는 안 보이고 화면 읽기 프로그램만 읽는다 (추이 표, PR #257 리뷰) */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

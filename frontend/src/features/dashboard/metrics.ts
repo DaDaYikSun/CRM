@@ -5,6 +5,7 @@ import { RESULT_LABEL, RESULTS } from "@/features/contact/contactRules";
 
 export const METRICS_COPY = {
   empty: "아직 기록이 없습니다.", // 정책 4-2 · POL-ERR-008 공통 빈 상태
+  loading: "숫자를 불러오는 중입니다.", // 정책 4-2 '숫자 불러오는 중 (S-02)'. 지표 카드 · 추이(#185)가 같이 쓴다
   methodNote: "전화 안 받음 2일차 뒤 보낸 안내 문자도 문자로 셉니다.", // 정책 4-4 S-02 '연락 방법별 전환'
 } as const;
 
