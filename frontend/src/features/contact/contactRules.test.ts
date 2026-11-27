@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PanelItem } from "@/lib/api/contact";
-import { canSave, defaultNextContactDate, formatPhone, isNightKst, isSecondDayNoAnswer, savedToast, secondDayCopy } from "./contactRules";
+import { canSave, defaultNextContactDate, formatPhone, isContactDirty, isNightKst, isSecondDayNoAnswer, savedToast, secondDayCopy } from "./contactRules";
 
 const TODAY = "2026-11-25";
 
@@ -87,5 +87,17 @@ describe("isNightKst (POL-CNT-007, 한국 시간 21시~다음 날 8시)", () => 
   });
   it("자정(00:00)은 밤", () => {
     expect(isNightKst(kst("00:00"))).toBe(true);
+  });
+});
+
+describe("isContactDirty (나가기 경고, #243)", () => {
+  it("아무것도 고르지 않았으면 false (공백 메모도)", () => {
+    expect(isContactDirty({}, "", false)).toBe(false);
+    expect(isContactDirty({ 101: undefined }, "  ", false)).toBe(false);
+  });
+  it("결과 · 메모 · 다음 연락 예정일 중 하나라도 있으면 true", () => {
+    expect(isContactDirty({ 101: "BOOKED" }, "", false)).toBe(true);
+    expect(isContactDirty({}, "오후에 다시", false)).toBe(true);
+    expect(isContactDirty({}, "", true)).toBe(true);
   });
 });

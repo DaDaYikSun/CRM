@@ -26,6 +26,7 @@ import {
   COPY,
   defaultNextContactDate,
   formatPhone,
+  isContactDirty,
   isNightKst,
   isSecondDayNoAnswer,
   MEMO_MAX,
@@ -56,10 +57,13 @@ export function ContactPanel({
   guardianId,
   onSaved,
   onClose,
+  onDirtyChange,
 }: {
   guardianId: number;
   onSaved: () => void;
   onClose: () => void;
+  /** 저장하지 않은 입력이 생기거나 없어질 때 알린다. 다른 보호자 줄 · [닫기]의 나가기 경고는 부르는 쪽이 한다 (#243) */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const today = todayKst();
   const [panel, setPanel] = useState<Panel | null>(null);
@@ -125,6 +129,11 @@ export function ContactPanel({
   useEffect(() => {
     setSmsKey(newIdempotencyKey());
   }, [smsItemIds]);
+
+  const dirty = isContactDirty(results, memo, nextDateTouched);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   function choose(next: Results) {
     setResults(next);

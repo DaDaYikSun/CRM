@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canSave, savedMessage } from "./visitRules";
+import { canSave, isVisitDirty, savedMessage } from "./visitRules";
 
 const TODAY = "2026-11-25";
 
@@ -29,5 +29,20 @@ describe("savedMessage", () => {
   it("정책 4-2 문구 그대로", () => {
     expect(savedMessage("VACCINE")).toBe("접종 기록을 저장했습니다. 다음 예정일을 다시 계산했습니다.");
     expect(savedMessage("GROOMING")).toBe("미용 기록을 저장했습니다. 다음 예정일을 다시 계산했습니다.");
+  });
+});
+
+describe("isVisitDirty (나가기 경고, #243)", () => {
+  const TODAY = "2026-11-25";
+  const blank = { service: "VACCINE" as const, vaccineTypeId: "", visitDate: TODAY, memo: "" };
+  it("처음 연 상태 그대로면 false (공백만 적은 메모도)", () => {
+    expect(isVisitDirty(blank, "VACCINE", TODAY)).toBe(false);
+    expect(isVisitDirty({ ...blank, memo: "  " }, "VACCINE", TODAY)).toBe(false);
+  });
+  it("구분 · 접종 종류 · 날짜 · 메모 중 하나라도 바꾸면 true", () => {
+    expect(isVisitDirty({ ...blank, service: "GROOMING" }, "VACCINE", TODAY)).toBe(true);
+    expect(isVisitDirty({ ...blank, vaccineTypeId: "1" }, "VACCINE", TODAY)).toBe(true);
+    expect(isVisitDirty({ ...blank, visitDate: "2026-11-24" }, "VACCINE", TODAY)).toBe(true);
+    expect(isVisitDirty({ ...blank, memo: "기침" }, "VACCINE", TODAY)).toBe(true);
   });
 });

@@ -102,3 +102,11 @@ export function canSave(items: PanelItem[], results: Results, memo: string): boo
 export function formatPhone(digits: string): string {
   return digits.replace(/^(02|\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
 }
+
+/**
+ * 저장하지 않은 입력이 있어 패널을 닫거나 다른 보호자로 바꾸면 사라지는지 (나가기 경고, FR-COM-003, #243).
+ * 결과를 하나라도 골랐거나, 메모를 적었거나, 다음 연락 예정일을 직접 고쳤으면 true. 저장이 끝나면 셋 다 비워져 false.
+ */
+export function isContactDirty(results: Results, memo: string, nextDateTouched: boolean): boolean {
+  return Object.values(results).some(Boolean) || memo.trim() !== "" || nextDateTouched;
+}
