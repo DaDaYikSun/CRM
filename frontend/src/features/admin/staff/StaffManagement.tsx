@@ -11,6 +11,7 @@ import { createStaff, listStaff, resetStaffPassword, updateStaff, type StaffItem
 import { fetchMe } from "@/lib/api/auth";
 import { ApiError, LOAD_FAILED_MESSAGE, SAVE_FAILED_MESSAGE, newIdempotencyKey } from "@/lib/api/client";
 import { useDialogFocus } from "@/lib/hooks/useDialogFocus";
+import { useLeaveConfirm } from "@/lib/hooks/useLeaveConfirm";
 import type { Role } from "@/types/common";
 import {
   LOGIN_ID_MAX,
@@ -29,7 +30,7 @@ const EMPTY_FORM: StaffForm = { name: "", loginId: "", role: "" };
 
 // B-01 직원 관리 (#150, FR-ADM-001, 화면 설계 SCR-B01). 관리자만 (서버도 막는다, NFR-SEC-002).
 // 직원 추가 → 임시 비밀번호 모달(한 번만 보임). 역할 바꾸기 · 비활성화는 줄에서. 퇴사 직원은 지우지 않는다 (POL-ACC-004).
-// [비밀번호 초기화] → 확인 창 → 임시 비밀번호 모달 (#183, FR-ADM-007, SCR-B01-07). 입력 중 나가기 경고는 #184.
+// [비밀번호 초기화] → 확인 창 → 임시 비밀번호 모달 (#183, FR-ADM-007, SCR-B01-07). 직원 추가 창에 입력한 채로 닫거나 나가면 나가기 경고 (#184).
 export function StaffManagement() {
   const [staff, setStaff] = useState<StaffItem[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -54,9 +55,12 @@ export function StaffManagement() {
   const loadSeq = useRef(0);
   const addDialog = useRef<HTMLFormElement>(null);
   const tempDialog = useRef<HTMLDivElement>(null);
+  // 직원 추가 창에 입력한 칸이 있으면 나가기 경고 (FR-COM-003, #184)
+  const addDirty = adding && JSON.stringify(form) !== JSON.stringify(EMPTY_FORM);
+  const { leaveDialog, confirmLeave } = useLeaveConfirm(addDirty);
   const closeAdd = useCallback(() => {
-    if (!saving) setAdding(false);
-  }, [saving]);
+    if (!saving) confirmLeave(() => setAdding(false));
+  }, [saving, confirmLeave]);
   const closeTemp = useCallback(() => setTempPassword(null), []);
   const resetDialog = useRef<HTMLDivElement>(null);
   const closeReset = useCallback(() => {
@@ -173,6 +177,7 @@ export function StaffManagement() {
 
   return (
     <section className={styles.page}>
+      {leaveDialog}
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>직원 관리</h1>
@@ -311,7 +316,7 @@ export function StaffManagement() {
               error={errors.role}
             />
             <div className={styles.actions}>
-              <Button variant="secondary" onClick={() => setAdding(false)} disabled={saving}>
+              <Button variant="secondary" onClick={closeAdd} disabled={saving}>
                 취소
               </Button>
               <Button type="submit" loading={saving}>

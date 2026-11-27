@@ -16,6 +16,7 @@ import {
   type PetProfilePatch,
 } from "@/lib/api/customer";
 import { GUARDIAN_COPY, PET_SAVED_TOAST, parseWeight } from "./guardianRules";
+import { useLeaveConfirm } from "@/lib/hooks/useLeaveConfirm";
 
 export interface PetProfileValues {
   petId: number;
@@ -100,8 +101,21 @@ export function PetProfileForm({
     }
   }
 
+  // 처음 값에서 바뀐 칸이 있으면 나가기 경고 (FR-COM-003, #184).
+  // 생년월일은 같은 날짜로 되돌려도 직접 입력했으면 저장 대상(추정 표시를 뗌)이라 바뀐 것으로 본다.
+  // 저장 중에도 경고를 둔다: 실패하면 입력이 남아야 한다. 성공하면 부르는 쪽이 폼을 닫는다.
+  const dirty =
+    name !== pet.name ||
+    birthDate !== pet.birthDate ||
+    (birthTouched && Boolean(birthDate)) ||
+    breedId !== String(pet.breedId) ||
+    coatTypeId !== String(pet.coatTypeId) ||
+    weight !== (pet.weightKg === null ? "" : String(pet.weightKg));
+  const { leaveDialog, confirmLeave } = useLeaveConfirm(dirty);
+
   return (
     <form onSubmit={(event) => { event.preventDefault(); void save(); }}>
+      {leaveDialog}
       <p>{GUARDIAN_COPY.petProfileNote}</p>
       <TextField label="아이 이름" required value={name} maxLength={30} onChange={setName}
         error={showErrors ? errors.name : undefined} />
@@ -113,7 +127,7 @@ export function PetProfileForm({
       <TextField label="체중(kg)" value={weight} onChange={setWeight}
         error={showErrors ? errors.weight : undefined} />
       {error && <Notice tone="danger">{error}</Notice>}
-      <Button variant="ghost" onClick={onCancel} disabled={saving}>취소</Button>
+      <Button variant="ghost" onClick={() => confirmLeave(onCancel)} disabled={saving}>취소</Button>
       <Button type="submit" loading={saving}>저장</Button>
     </form>
   );
