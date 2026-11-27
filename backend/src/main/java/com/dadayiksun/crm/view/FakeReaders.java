@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
  * 켜질 때마다 WARN 로그를 남긴다.
  * <ul>
  *   <li>{@link PetScheduleReader}: cycle #144 (PR #202) 머지 뒤 {@code CycleQueryService}를 감싼 구현으로 바꾼다</li>
- *   <li>{@link VisitTimelineReader}: visit #148 머지 뒤</li>
+ *   <li>{@link VisitTimelineReader}: 실제 구현 {@link VisitTimeline}으로 바꿈 (#148)</li>
  *   <li>{@link ContactTimelineReader}: 실제 구현 {@link ContactTimeline}으로 바꿈 (#153)</li>
  * </ul>
  */
@@ -28,13 +28,6 @@ class FakeReaders {
     PetScheduleReader fakePetScheduleReader() {
         warn("PetScheduleReader(C4, #144)");
         return petId -> List.of();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(VisitTimelineReader.class)
-    VisitTimelineReader fakeVisitTimelineReader() {
-        warn("VisitTimelineReader(C9 visit, #148)");
-        return (petId, kinds) -> List.of();
     }
 
     private static void warn(String what) {
