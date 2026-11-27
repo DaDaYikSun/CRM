@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { seedInt, seedSetting } from './seed-settings.mjs';
+import { applyRuleSet, seedInt, seedSetting, seedVaccineRules } from './seed-settings.mjs';
 
 const DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/main/resources/db/dummy');
 
@@ -140,6 +140,13 @@ check('전화면 결과가 있음 (DB CHECK)', con.every((c) => c.method === 'SM
 const conBefore = con.filter((c) => c.contacted_at < CRM).length;
 check('도입 전 연락 기록은 거의 없음 (10% 미만)', conBefore / con.length < 0.1, `${conBefore}건 / ${con.length}`);
 
+// ---- 접종 규칙 읽기 (생성 스크립트가 앱과 같은 규칙을 쓰는지, PR #226 리뷰)
+const rules = seedVaccineRules();
+check('마이그레이션 접종 규칙을 읽음 (광견병 첫 예정 112일 등)', rules.RABIES?.[0]?.from === 112 && rules.DHPPL?.length === 2,
+  Object.entries(rules).map(([c, r]) => `${c} ${r.length}행`).join(', '));
+const rejects = (set) => { try { applyRuleSet({}, set); return false; } catch { return true; } };
+check('접종 규칙 UPDATE에 모르는 칸이 있으면 멈춤', !rejects("r.age_from_days = 112, r.note = 'x'") && rejects("r.age_from_days = 1, r.phase = 'X'"));
+
 // ---- 날짜 (매뉴얼 4장 · 5장)
 const petMap = new Map(pets.map((p) => [p.pet_id, p]));
 const dateOf = (r) => r.visit_date ?? r.contacted_at.slice(0, 10);
@@ -149,8 +156,10 @@ const bad = [...vac, ...gro, ...con].filter((r) => {
   return d < p.birth_date || (p.rainbow_at && d >= p.rainbow_at.slice(0, 10)) || d > END;
 });
 check('생년월일 전 · 무지개다리 뒤 · 미래 기록 없음', bad.length === 0, `${bad.length}건`);
-const early = [...vac, ...gro].filter((r) => dateOf(r) < START_BASE).length;
-check('기록은 기간 직전 기준 접종부터 (2024-07-01 이후)', early === 0, `${early}건`);
+// 등록 전 과거 기록(등록할 때 옮겨 적은 접종 이력)은 그 전이어도 된다. 예정일 계산이 기초접종을 다 채운 것으로 보게 하려는 것 (K24, #147)
+const regOf = (r) => petMap.get(r.pet_id).created_at.slice(0, 10);
+const early = [...vac, ...gro].filter((r) => dateOf(r) < START_BASE && dateOf(r) >= regOf(r)).length;
+check('등록 뒤 기록은 기간 직전 기준 접종부터 (2024-07-01 이후)', early === 0, `${early}건`);
 
 // ---- 무지개다리 보류 (POL-TGT-003): 같은 집 아이는 건넌 날부터 RAINBOW_HOLD_DAYS일 동안 연락하지 않는다
 const holdHit = con.filter((c) => rainbow.some((r) => r.guardian_id === c.guardian_id && r.pet_id !== c.pet_id

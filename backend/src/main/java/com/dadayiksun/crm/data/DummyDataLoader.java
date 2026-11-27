@@ -5,10 +5,13 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
-import java.sql.Types;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +28,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.dadayiksun.crm.customer.domain.Chosung;
+import com.dadayiksun.crm.cycle.domain.Schedule;
+import com.dadayiksun.crm.cycle.domain.ServiceType;
+import com.dadayiksun.crm.cycle.service.CycleQueryService;
+import com.dadayiksun.crm.cycle.service.CycleService;
+import com.dadayiksun.crm.cycle.service.MissJudgementJob;
 
 /**
  * 시연용 더미 데이터 적재 (FR-DATA-001, #147, 팀 결정 K8). local · demo 프로필에서만 돈다. 운영에서는 이 빈이 없다.
@@ -34,8 +42,12 @@ import com.dadayiksun.crm.customer.domain.Chosung;
  *       CSV 안 번호라 DB가 준 id로 바꿔 넣는다 (db/dummy/README.md). 빈 DB를 가정하지 않는다.</li>
  *   <li>보호자가 이미 한 명이라도 있으면 넣지 않는다 (앱을 다시 켜도 두 번 들어가지 않음). 전부 한 트랜잭션이라 실패하면 아무것도 남지 않는다.</li>
  *   <li>더미 직원 비밀번호는 환경 변수 {@code DUMMY_STAFF_PASSWORD} 하나를 BCrypt로 저장한다 (NFR-SEC-001). 비면 적재하지 않는다.</li>
- *   <li>예정 일정(schedule) · 누락 판정 · 연락 기록은 아직 넣지 않는다. contact_log.schedule_id가 필수라 #144 2단계(예정 일정 만들기)
- *       뒤에 이 러너에 더한다. is_converted는 #154 규칙으로 채운다.</li>
+ *   <li>예정 일정은 적재기가 따로 계산하지 않고 cycle 주인 경로를 아이마다 부른다 (#144, PR #201 리뷰 1번).
+ *       등록일 전 방문을 넣고 첫 예정 일정({@code createInitialSchedules}), 그 뒤 방문 · 연락을 시간 순서로
+ *       방문은 넣고 '방문 기록됨'({@code onVisitRecorded}), 연락은 그때 열린 예정 일정에 붙인다 ({@link DummyTimeline}).
+ *       무지개다리 아이는 기록을 다 넣은 뒤 상태를 바꾸고 다시 계산한다. 끝에 누락 판정 작업을 한 번 돌린다 (K20).</li>
+ *   <li>붙일 예정 일정이 없는 연락(규칙 행이 아직 없는 선택 접종 · 등록 전 연락)은 넣지 않고 수만 남긴다.</li>
+ *   <li>주기의 연락 상태(contact_state 등)와 전환(is_converted)은 아직 채우지 않는다. #154 판정 함수가 생기면 이 러너에서 부른다.</li>
  * </ul>
  *
  * <p>K17(쓰기는 주인 도메인만)의 예외다: 시연 데이터라 staff(auth) · guardian · pet(customer) · visit(visit)에 바로 쓴다 (#147 남은 질문 4).
@@ -51,13 +63,20 @@ public class DummyDataLoader implements ApplicationRunner {
     private final TransactionTemplate tx;
     private final PasswordEncoder passwordEncoder;
     private final String staffPassword;
+    private final CycleService cycle;
+    private final CycleQueryService cycleQuery;
+    private final MissJudgementJob missJudgement;
 
     public DummyDataLoader(JdbcTemplate jdbc, TransactionTemplate tx, PasswordEncoder passwordEncoder,
-                           @Value("${crm.dummy.staff-password:}") String staffPassword) {
+                           @Value("${crm.dummy.staff-password:}") String staffPassword,
+                           CycleService cycle, CycleQueryService cycleQuery, MissJudgementJob missJudgement) {
         this.jdbc = jdbc;
         this.tx = tx;
         this.passwordEncoder = passwordEncoder;
         this.staffPassword = staffPassword;
+        this.cycle = cycle;
+        this.cycleQuery = cycleQuery;
+        this.missJudgement = missJudgement;
     }
 
     @Override
@@ -72,11 +91,14 @@ public class DummyDataLoader implements ApplicationRunner {
             return;
         }
         Result r = tx.execute(status -> load());
-        log.info("더미 데이터를 넣었습니다: 직원 {}, 보호자 {}, 반려견 {}, 접종 {}, 미용 {}",
-                r.staff(), r.guardians(), r.pets(), r.vaccinations(), r.groomings());
+        log.info("더미 데이터를 넣었습니다: 직원 {}, 보호자 {}, 반려견 {}, 접종 {}, 미용 {}, 예정 일정 {}, 누락 판정 {}, 연락 {}"
+                        + " (붙일 예정 일정이 없어 뺀 연락: 등록 전 {}, 열린 예정 없음 {})",
+                r.staff(), r.guardians(), r.pets(), r.vaccinations(), r.groomings(), r.schedules(), r.missed(),
+                r.contacts(), r.contactsBeforeRegistration(), r.contactsWithoutSchedule());
     }
 
-    record Result(int staff, int guardians, int pets, int vaccinations, int groomings) {
+    record Result(int staff, int guardians, int pets, int vaccinations, int groomings, int schedules, int missed,
+                  int contacts, int contactsBeforeRegistration, int contactsWithoutSchedule) {
     }
 
     private Result load() {
@@ -106,9 +128,55 @@ public class DummyDataLoader implements ApplicationRunner {
 
         List<Map<String, String>> vaccinations = DummyCsv.read("vaccinations.csv");
         List<Map<String, String>> groomings = DummyCsv.read("groomings.csv");
-        insertVisits(vaccinations, "VACCINE", petIds, vaccineIds, staffIds);
-        insertVisits(groomings, "GROOMING", petIds, vaccineIds, staffIds);
-        return new Result(staffIds.size(), guardianIds.size(), petIds.size(), vaccinations.size(), groomings.size());
+        // CSV의 pet_id가 반려견 CSV에 없으면 멈춘다 (한 트랜잭션이라 아무것도 남지 않아 고친 뒤 다시 켜면 된다, PR #226 리뷰)
+        Map<String, List<DummyTimeline.Event>> eventsByPet = new HashMap<>();
+        vaccinations.forEach(v -> eventsOf(eventsByPet, petIds, v).add(DummyTimeline.visit("VACCINE", v)));
+        groomings.forEach(g -> eventsOf(eventsByPet, petIds, g).add(DummyTimeline.visit("GROOMING", g)));
+        DummyCsv.read("contacts.csv").forEach(c -> eventsOf(eventsByPet, petIds, c).add(DummyTimeline.contact(c)));
+
+        int contacts = 0;
+        int contactsBefore = 0;
+        int contactsWithout = 0;
+        List<Long> loadedPetIds = new ArrayList<>();
+        for (Map<String, String> p : pets) {
+            long petId = petIds.get(p.get("pet_id"));
+            loadedPetIds.add(petId);
+            LocalDate registeredOn = LocalDate.parse(p.get("created_at").substring(0, 10));
+            DummyTimeline.Plan plan = DummyTimeline.plan(registeredOn,
+                    eventsByPet.getOrDefault(p.get("pet_id"), List.of()));
+            contactsBefore += plan.contactsBeforeRegistration();
+
+            // 등록할 때 같이 입력한 과거 기록 → 첫 예정 일정 (아이 등록됨)
+            for (DummyTimeline.Event e : plan.beforeRegistration()) {
+                insertVisit(petId, e, vaccineIds, staffIds);
+            }
+            cycle.createInitialSchedules(petId);
+
+            for (DummyTimeline.Event e : plan.afterRegistration()) {
+                if (e.kind() == DummyTimeline.Kind.VISIT) {
+                    cycle.onVisitRecorded(insertVisit(petId, e, vaccineIds, staffIds));
+                } else if (insertContact(petId, e.row(), guardianIds, vaccineIds, staffIds)) {
+                    contacts++;
+                } else {
+                    contactsWithout++;
+                }
+            }
+
+            // 무지개다리 아이: 기록을 다 넣은 뒤 상태를 바꾸고 다시 계산한다 (DB 설계 5-1).
+            // 다시 계산은 '오늘' 기준이라, 무지개다리 날부터 적재일 전까지 예정이 된 OPEN 주기도 그날 기준으로 VOID한다
+            // (그날 표시했다면 VOID됐을 행, POL-END-002). 그날 전에 이미 지난 주기 · 판정은 그대로 (PR #226 리뷰)
+            if ("RAINBOW".equals(p.get("status"))) {
+                Timestamp rainbowAt = time(p.get("rainbow_at"));
+                jdbc.update("UPDATE pet SET status = 'RAINBOW', rainbow_at = ? WHERE pet_id = ?", rainbowAt, petId);
+                cycle.recalculatePet(petId);
+                jdbc.update("UPDATE schedule SET status = 'VOID' WHERE pet_id = ? AND status = 'OPEN' AND due_date >= ?",
+                        petId, Date.valueOf(rainbowAt.toLocalDateTime().toLocalDate()));
+            }
+        }
+        int missed = missJudgement.run();
+        int schedules = loadedPetIds.stream().mapToInt(id -> cycleQuery.findSchedules(id).size()).sum();
+        return new Result(staffIds.size(), guardianIds.size(), petIds.size(), vaccinations.size(), groomings.size(),
+                schedules, missed, contacts, contactsBefore, contactsWithout);
     }
 
     /** 같은 로그인 아이디가 있으면 그 직원을 쓰고, 없으면 넣는다 */
@@ -159,29 +227,51 @@ public class DummyDataLoader implements ApplicationRunner {
                 bool(p.get("birth_date_estimated")), blank(p.get("registration_no")),
                 p.get("has_pet_insurance").isEmpty() ? null : bool(p.get("has_pet_insurance")),
                 p.get("weight_kg").isEmpty() ? null : new BigDecimal(p.get("weight_kg")),
-                p.get("status"), time(p.get("rainbow_at")), date(p.get("contact_hold_until")),
+                "ACTIVE", null, date(p.get("contact_hold_until")), // 무지개다리는 기록을 다 넣은 뒤 바꾼다
                 require(staffIds, p.get("created_by_login_id"), "직원"), time(p.get("created_at")));
     }
 
-    private void insertVisits(List<Map<String, String>> rows, String serviceType, Map<String, Long> petIds,
-                              Map<String, Long> vaccineIds, Map<String, Long> staffIds) {
-        jdbc.batchUpdate("""
+    private static List<DummyTimeline.Event> eventsOf(Map<String, List<DummyTimeline.Event>> eventsByPet,
+                                                     Map<String, Long> petIds, Map<String, String> row) {
+        require(petIds, row.get("pet_id"), "반려견");
+        return eventsByPet.computeIfAbsent(row.get("pet_id"), k -> new ArrayList<>());
+    }
+
+    private long insertVisit(long petId, DummyTimeline.Event e, Map<String, Long> vaccineIds, Map<String, Long> staffIds) {
+        Map<String, String> v = e.row();
+        Long vaccineTypeId = "VACCINE".equals(e.service())
+                ? require(vaccineIds, v.get("vaccine_type_code"), "접종 종류") : null;
+        return insert("""
                 INSERT INTO visit (pet_id, service_type, vaccine_type_id, visit_date, memo, brought_by_phone, created_by, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, rows, 500, (ps, v) -> {
-            ps.setLong(1, require(petIds, v.get("pet_id"), "반려견"));
-            ps.setString(2, serviceType);
-            if ("VACCINE".equals(serviceType)) {
-                ps.setLong(3, require(vaccineIds, v.get("vaccine_type_code"), "접종 종류"));
-            } else {
-                ps.setNull(3, Types.BIGINT);
-            }
-            ps.setDate(4, date(v.get("visit_date")));
-            ps.setString(5, blank(v.get("memo")));
-            ps.setString(6, blank(v.get("brought_by_phone")));
-            ps.setLong(7, require(staffIds, v.get("created_by_login_id"), "직원"));
-            ps.setTimestamp(8, time(v.get("created_at")));
-        });
+                """, petId, e.service(), vaccineTypeId, date(v.get("visit_date")), blank(v.get("memo")),
+                blank(v.get("brought_by_phone")), require(staffIds, v.get("created_by_login_id"), "직원"),
+                time(v.get("created_at")));
+    }
+
+    /** 그때 열린 같은 서비스 · 접종 종류의 예정 일정에 붙인다. 없으면 넣지 않고 false */
+    private boolean insertContact(long petId, Map<String, String> c, Map<String, Long> guardianIds,
+                                  Map<String, Long> vaccineIds, Map<String, Long> staffIds) {
+        ServiceType service = ServiceType.valueOf(c.get("service_type"));
+        Long vaccineTypeId = service == ServiceType.VACCINE
+                ? require(vaccineIds, c.get("vaccine_type_code"), "접종 종류") : null;
+        Optional<Schedule> open = cycleQuery.findOpenSchedules(petId).stream()
+                .filter(s -> s.serviceType() == service && Objects.equals(s.vaccineTypeId(), vaccineTypeId))
+                .findFirst();
+        if (open.isEmpty()) {
+            return false;
+        }
+        insert("""
+                INSERT INTO contact_log (contact_group_id, guardian_id, pet_id, schedule_id, method, result, is_mock_sms,
+                    sms_template, sms_body, talked_with, memo, next_contact_date, contacted_at, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                c.get("contact_group_id"), require(guardianIds, c.get("guardian_id"), "보호자"), petId,
+                open.get().scheduleId(), c.get("method"), blank(c.get("result")), bool(c.get("is_mock_sms")),
+                blank(c.get("sms_template")), blank(c.get("sms_body")), blank(c.get("talked_with")), blank(c.get("memo")),
+                date(c.get("next_contact_date")), time(c.get("contacted_at")),
+                require(staffIds, c.get("created_by_login_id"), "직원"), time(c.get("contacted_at")));
+        return true;
     }
 
     private Map<String, Long> lookup(String sql) {
