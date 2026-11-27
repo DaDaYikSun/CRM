@@ -11,7 +11,9 @@ import { ApiError, LOAD_FAILED_MESSAGE } from "@/lib/api/client";
 import { fetchPetDetail, type PetDetailResponse } from "@/lib/api/pet";
 import { todayKst } from "@/lib/utils/date";
 import { PetProfileForm } from "@/features/customer/guardian/PetProfileForm";
-import { TAG_LABELS } from "@/features/customer/guardian/guardianRules";
+import { TAG_LABELS, holdLabel } from "@/features/customer/guardian/guardianRules";
+import { RainbowDialog } from "@/features/customer/rainbow/RainbowDialog";
+import { isHeld } from "@/features/customer/rainbow/rainbowRules";
 import { ageLabel } from "@/features/search/age";
 import type { Role } from "@/types/common";
 import { PET_COPY, SEVERE_TAG, scheduleBadge } from "./petRules";
@@ -28,6 +30,7 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [rainbowOpen, setRainbowOpen] = useState(false);
   const [visitModal, setVisitModal] = useState<VisitServiceType | null>(null);
   const [timelineKey, setTimelineKey] = useState(0);
   const groomer = role === "GROOMER";
@@ -49,6 +52,7 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
   useEffect(() => {
     setDetail(null);
     setEditing(false);
+    setRainbowOpen(false);
     load();
   }, [load]);
 
@@ -88,6 +92,8 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
               <h1 className={styles.title}>{pet.name}</h1>
               <Badge tone={rainbow ? "neutral" : "success"}>{rainbow ? PET_COPY.rainbow : PET_COPY.active}</Badge>
               {pet.birthDateEstimated && <Badge>{PET_COPY.birthEstimated}</Badge>}
+              {isHeld(pet.contactHoldUntil, today) && <Badge tone="warning">연락 보류</Badge>}
+              {isHeld(pet.contactHoldUntil, today) && <span className={styles.meta}>{holdLabel(pet.contactHoldUntil)}</span>}
               {!groomer && <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>수정</Button>}
             </div>
             <p className={styles.meta}>
@@ -104,11 +110,12 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
         )}
       </section>
 
-      {/* 무지개다리 아이는 기록 버튼이 없다 (SCR-S09-03, POL-END-002). 서버도 409로 막는다 */}
+      {/* 무지개다리 아이는 기록 버튼이 없다 (SCR-S09-03, POL-END-002). 서버도 409로 막는다. [무지개다리로 표시]는 미용사에게 숨긴다 (POL-ACC-011) */}
       {!rainbow && (
         <div className={styles.actions}>
           {!groomer && <Button variant="secondary" onClick={() => setVisitModal("VACCINE")}>접종 기록</Button>}
           <Button variant="secondary" onClick={() => setVisitModal("GROOMING")}>미용 기록</Button>
+          {!groomer && <Button variant="secondary" onClick={() => setRainbowOpen(true)}>무지개다리로 표시</Button>}
         </div>
       )}
       {visitModal && (
@@ -125,6 +132,10 @@ export function PetDetail({ petId, role }: { petId: number; role: Role }) {
             setTimelineKey((n) => n + 1); // 타임라인을 새로 만들어 첫 쪽 맨 위에 새 기록 (SCR-S09-07)
           }}
         />
+      )}
+      {rainbowOpen && (
+        <RainbowDialog petId={pet.petId} petName={pet.name} onClose={() => setRainbowOpen(false)}
+          onDone={() => { setRainbowOpen(false); load(); }} />
       )}
 
       <section className={styles.card} aria-label="다음 예정일">

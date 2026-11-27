@@ -176,3 +176,15 @@ export function revertRainbow(petId: number, options: SaveOptions): Promise<{ re
 export function fetchCurrentRole(): Promise<{ role: "ADMIN" | "DESK" | "GROOMER" }> {
   return api.get<{ role: "ADMIN" | "DESK" | "GROOMER" }>("/api/auth/me");
 }
+
+// ---- #171 무지개다리로 표시 (C21, API 설계 3-3) ----
+
+/** 관리자 · 데스크만 (서버가 막는다, POL-ACC-011). 이미 무지개다리면 서버가 아무것도 하지 않고 heldPetIds는 빈 목록 */
+export function markRainbow(petId: number, options: SaveOptions): Promise<{ holdUntil: string | null; heldPetIds: number[] }> {
+  return api.post(`/api/pets/${petId}/rainbow`, undefined, options);
+}
+
+/** GET /api/options/settings: 화면이 쓰는 기준값 (모든 역할, API 설계 3-2) */
+export function fetchSettings(): Promise<{ missThresholdDays: number; rainbowHoldDays: number }> {
+  return api.get("/api/options/settings");
+}

@@ -57,6 +57,16 @@ class OptionControllerTest {
     }
 
     @Test
+    void 기준값은_미용사도_읽는다() throws Exception {
+        when(options.settings()).thenReturn(new com.dadayiksun.crm.customer.dto.OptionResponses.SettingsResponse(14, 30));
+
+        mvc.perform(get("/api/options/settings").session(AuthTestSupport.session(Role.GROOMER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.missThresholdDays").value(14))
+                .andExpect(jsonPath("$.data.rainbowHoldDays").value(30));
+    }
+
+    @Test
     void 접종_종류는_isMajor_이름으로() throws Exception {
         when(options.vaccineTypes()).thenReturn(List.of(new VaccineTypeOption(1L, "DHPPL", "종합백신", true)));
 

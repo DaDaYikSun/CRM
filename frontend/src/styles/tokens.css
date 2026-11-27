@@ -36,6 +36,7 @@
   --bg-page: var(--navy-100);
   --bg-surface: var(--white);
   --bg-subtle: var(--navy-50);
+  --bg-overlay: rgba(27, 29, 42, 0.4); /* 모달 뒤 어두운 막 */
   --bg-selected: var(--peri-50);
   --text-primary: var(--navy-900);
   --text-secondary: var(--navy-700);
