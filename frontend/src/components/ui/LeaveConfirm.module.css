@@ -1,0 +1,32 @@
+/* CMP-S07 LeaveConfirm (#184). 모달 모양은 B-01 확인 창과 같게 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(27, 29, 42, 0.4);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  width: min(400px, calc(100vw - var(--spacing-40)));
+  padding: var(--spacing-24);
+  background: var(--bg-surface);
+  border-radius: var(--radius-18);
+  box-shadow: var(--shadow-card);
+}
+
+.message {
+  margin: 0;
+  font-size: var(--font-size-16);
+  font-weight: var(--font-semibold);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-8);
+}

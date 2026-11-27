@@ -11,6 +11,7 @@ import { TextField } from "@/components/ui/TextField";
 import { Toast } from "@/components/ui/Toast";
 import { ApiError, LOAD_FAILED_MESSAGE, newIdempotencyKey } from "@/lib/api/client";
 import { saveFailure } from "@/lib/api/failure";
+import { useLeaveConfirm } from "@/lib/hooks/useLeaveConfirm";
 import {
   fetchCurrentRole,
   fetchGuardianDetail,
@@ -35,7 +36,6 @@ import {
   toggleTag,
   type GuardianFormState,
 } from "./guardianRules";
-import { ContactHistoryTable } from "./ContactHistoryTable";
 import styles from "./GuardianDetail.module.css";
 
 function toForm(d: Detail): GuardianFormState {
@@ -87,6 +87,9 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
   }, []);
 
   const closeToast = useCallback(() => setToast(null), []);
+  // 연락처 수정 중 바꾼 칸이 있으면 나가기 경고 (FR-COM-003, #184)
+  const dirty = editing && form !== null && detail !== null && JSON.stringify(form) !== JSON.stringify(toForm(detail));
+  const { leaveDialog, confirmLeave } = useLeaveConfirm(dirty);
 
   if (loadError) return <Notice tone="danger">{loadError}</Notice>;
   if (!detail) return null;
@@ -161,6 +164,7 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
 
   return (
     <div className={styles.page}>
+      {leaveDialog}
       <header>
         <h1 className={styles.title}>{g.name}</h1>
         <p className={styles.intro}>{GUARDIAN_COPY.subtitle}</p>
@@ -201,7 +205,7 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
             )}
             {saveError && <Notice tone="danger">{saveError}</Notice>}
             <div className={styles.actions}>
-              <Button variant="ghost" onClick={() => setEditing(false)} disabled={saving}>취소</Button>
+              <Button variant="ghost" onClick={() => confirmLeave(() => setEditing(false))} disabled={saving}>취소</Button>
               <Button onClick={save} loading={saving}>저장</Button>
             </div>
           </>
@@ -253,8 +257,6 @@ export function GuardianDetail({ guardianId }: { guardianId: number }) {
           </Notice>
         )}
       </section>
-
-      <ContactHistoryTable guardianId={guardianId} />
 
       {toast && <Toast message={toast} onClose={closeToast} />}
     </div>

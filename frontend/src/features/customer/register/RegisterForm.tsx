@@ -44,13 +44,14 @@ import {
   type RequiredField,
 } from "./registerRules";
 import styles from "./RegisterForm.module.css";
+import { useLeaveConfirm } from "@/lib/hooks/useLeaveConfirm";
 
 const PHONE_CHECK_DELAY_MS = 400;
 
 // S-08 보호자 · 아이 등록 (#145, FR-CUS-001 · 002). 관리자 · 데스크만 쓴다 (POL-ACC-011, 서버도 막는다).
-export function RegisterForm({ initial }: { initial?: Partial<RegisterFormState> } = {}) {
+export function RegisterForm() {
   const router = useRouter();
-  const [form, setForm] = useState<RegisterFormState>({ ...EMPTY_FORM, ...initial });
+  const [form, setForm] = useState<RegisterFormState>(EMPTY_FORM);
   const [mode, setMode] = useState<RegisterMode>({ kind: "new" });
   const [touched, setTouched] = useState<Set<RequiredField>>(new Set());
   const [serverErrors, setServerErrors] = useState<Partial<Record<RequiredField, string>>>({});
@@ -179,12 +180,16 @@ export function RegisterForm({ initial }: { initial?: Partial<RegisterFormState>
   }
 
   const closeToast = useCallback(() => setToast(null), []);
+  // 저장 전에 하나라도 입력했으면 나가기 경고 (FR-COM-003, #184). 저장이 끝나면(savedPetId) 경고하지 않는다
+  const dirty = savedPetId === null && (mode.kind === "existing" || JSON.stringify(form) !== JSON.stringify(EMPTY_FORM));
+  const { leaveDialog } = useLeaveConfirm(dirty);
 
   const showDuplicate =
     mode.kind === "new" && phoneMatches?.exists === true && acceptedPhone !== phoneDigits;
 
   return (
     <div className={styles.page}>
+      {leaveDialog}
       <header className={styles.header}>
         <h1 className={styles.title}>보호자 · 아이 등록</h1>
         <p className={styles.intro}>{REGISTER_COPY.intro}</p>
