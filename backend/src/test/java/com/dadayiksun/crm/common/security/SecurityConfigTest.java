@@ -14,6 +14,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import jakarta.servlet.http.Cookie;
 
+import com.dadayiksun.crm.auth.access.AuthTestSupport;
+import com.dadayiksun.crm.auth.domain.Role;
 import com.dadayiksun.crm.common.error.GlobalExceptionHandler;
 
 /** CSRF 토큰이 없는 저장 요청은 거부된다 (K10). 없는 API는 C1 오류 형식 (K16 ②). */
@@ -40,7 +42,9 @@ class SecurityConfigTest {
     @Test
     void CSRF_토큰이_있으면_통과하고_없는_API는_NOT_FOUND() throws Exception {
         Cookie token = mvc.perform(get("/api/csrf")).andReturn().getResponse().getCookie("XSRF-TOKEN");
-        mvc.perform(post("/api/anything").cookie(token).header("X-XSRF-TOKEN", token.getValue()))
+        // #143: 모든 /api/**에 로그인이 필요해 직원 세션을 함께 보낸다
+        mvc.perform(post("/api/anything").cookie(token).header("X-XSRF-TOKEN", token.getValue())
+                        .session(AuthTestSupport.session(Role.ADMIN)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("NOT_FOUND"));
     }
