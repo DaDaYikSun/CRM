@@ -19,6 +19,8 @@ describe("afterLoginPath", () => {
   it("보던 화면으로 돌아간다 (검색어 포함)", () => {
     expect(afterLoginPath("/guardians/3?tab=pets", "DESK")).toBe("/guardians/3?tab=pets");
     expect(afterLoginPath("/grooming", "GROOMER")).toBe("/grooming");
+    expect(afterLoginPath("/guardians/3?tab=pets#memo", "DESK")).toBe("/guardians/3?tab=pets#memo");
+    expect(afterLoginPath("/targets/../search?q=a", "DESK")).toBe("/search?q=a");
   });
   it("next가 없으면 역할별 첫 화면", () => {
     expect(afterLoginPath(null, "DESK")).toBe("/dashboard");
@@ -29,7 +31,21 @@ describe("afterLoginPath", () => {
     expect(afterLoginPath("/dashboard", "GROOMER")).toBe("/grooming");
   });
   it("다른 사이트 주소는 받지 않는다", () => {
-    for (const bad of ["//evil.com/x", "https://evil.com", "/\\evil.com", "javascript:alert(1)", "dashboard", "/login"]) {
+    for (const bad of [
+      "//evil.com/x",
+      "https://evil.com",
+      "/\\evil.com",
+      "javascript:alert(1)",
+      "dashboard",
+      "/login",
+      // 정규화하면 //evil.example (PR #212 리뷰)
+      "/a/..//evil.example",
+      "/a/..//evil.example?x=1",
+      "/a/../\\evil.example",
+      // 제어 문자
+      "/\t/evil.com",
+      "/\n/evil.com",
+    ]) {
       expect(afterLoginPath(bad, "ADMIN")).toBe("/dashboard");
     }
   });

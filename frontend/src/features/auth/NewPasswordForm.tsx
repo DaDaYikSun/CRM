@@ -7,7 +7,8 @@ import { isValidPassword } from "@/features/admin/staff/staffRules";
 import { changePassword } from "@/lib/api/auth";
 import { ApiError, SAVE_FAILED_MESSAGE, newIdempotencyKey } from "@/lib/api/client";
 import type { Role } from "@/types/common";
-import { HOME_PATH } from "./access";
+import { loginPath } from "@/lib/api/loginPath";
+import { afterLoginPath } from "./returnTo";
 import styles from "./LoginForm.module.css";
 
 /** 정책 4-2 '임시 비밀번호 로그인' · '비밀번호 조건' */
@@ -19,7 +20,7 @@ const RULE_ID = "new-password-rule";
 // S-01 '새 비밀번호 정하기' 카드 (#150, FR-ADM-007, POL-ACC-010, 화면 설계 SCR-S01-02 · 04).
 // 임시 비밀번호로 로그인하면 로그인 카드 자리에 뜬다. 정하기 전에는 서버가 다른 API를 403 PASSWORD_CHANGE_REQUIRED로 막는다.
 // 두 칸이 같고 조건에 맞아야 [저장하고 시작하기]를 누를 수 있다. 서버도 조건을 다시 검사한다.
-export function NewPasswordForm({ role }: { role: Role }) {
+export function NewPasswordForm({ role, next = null }: { role: Role; next?: string | null }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -38,12 +39,12 @@ export function NewPasswordForm({ role }: { role: Role }) {
     setError(null);
     try {
       await changePassword(password, saveKey);
-      router.replace(HOME_PATH[role]);
+      router.replace(afterLoginPath(next, role));
       router.refresh();
     } catch (e) {
       if (e instanceof ApiError && e.code === "SESSION_EXPIRED") {
         // 로그인이 끝났으면 로그인 카드로 돌아간다 (FR-AUTH-003, #150 리뷰)
-        window.location.replace("/login");
+        window.location.replace(loginPath(next, true));
         return;
       }
       setError(e instanceof ApiError ? e.message : SAVE_FAILED_MESSAGE);
