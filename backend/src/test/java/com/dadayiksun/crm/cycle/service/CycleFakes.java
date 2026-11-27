@@ -47,6 +47,8 @@ final class CycleFakes {
         final List<Schedule> rows = new ArrayList<>();
         final Map<Long, GroomInterval> groomIntervals = new HashMap<>();
         private long seq = 100;
+        /** 판정 작업이 보는 아이 상태 (실제 SQL은 pet.status = 'ACTIVE'만 판정). 없는 아이는 판정하지 않는다 */
+        java.util.function.LongPredicate activePet = petId -> false;
 
         @Override
         public Optional<Schedule> findById(long scheduleId) {
@@ -82,10 +84,14 @@ final class CycleFakes {
         }
 
         @Override
-        public void complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt) {
+        public boolean complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt) {
+            if (findById(scheduleId).filter(s -> s.status() == Schedule.Status.OPEN).isEmpty()) {
+                return false;
+            }
             replace(scheduleId, s -> new Schedule(s.scheduleId(), s.petId(), s.serviceType(), s.vaccineTypeId(), s.dueDate(),
                     Schedule.Status.DONE, s.missThresholdDays(), visitId, s.openedByVisitId(), doneDate, gapDays, missedAt,
                     s.contactState(), s.noAnswerCount(), s.nextContactDate()));
+            return true;
         }
 
         @Override
@@ -113,7 +119,7 @@ final class CycleFakes {
         public int markMissed(LocalDate today) {
             int n = 0;
             for (Schedule s : List.copyOf(rows)) {
-                if (s.status() == Schedule.Status.OPEN && s.missedAt() == null
+                if (s.status() == Schedule.Status.OPEN && s.missedAt() == null && activePet.test(s.petId())
                         && s.dueDate().plusDays(s.missThresholdDays()).isBefore(today)) {
                     LocalDate judged = s.dueDate().plusDays(s.missThresholdDays() + 1L);
                     replace(s.scheduleId(), x -> new Schedule(x.scheduleId(), x.petId(), x.serviceType(), x.vaccineTypeId(),

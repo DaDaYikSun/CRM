@@ -28,7 +28,8 @@ public interface ScheduleRepository {
     long insertOpen(long petId, ServiceType serviceType, Long vaccineTypeId, LocalDate dueDate, int missThresholdDays,
                     Long openedByVisitId);
 
-    void complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt);
+    /** OPEN 행만 완료한다. 바꾼 행이 있으면 true (동시에 다른 방문이 먼저 완료했으면 false) */
+    boolean complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt);
 
     /** 늦게 입력한 기준 안 방문으로 저장한 판정을 지운다 (T16) */
     void clearMissedAt(long scheduleId);

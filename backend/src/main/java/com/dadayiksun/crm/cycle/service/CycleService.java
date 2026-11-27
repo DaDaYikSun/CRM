@@ -89,6 +89,16 @@ public class CycleService {
             recalculatePet(visit.petId());
             return new VisitOutcome(null, openId(visit));
         }
+        // 열린 주기가 없을 때 들어온 방문이 연 주기도 같다: 그 방문일 이하의 다른 방문(같은 날 두 번 · 늦은 입력)은
+        // 방금 연 주기를 닫지 않고 아직 오지 않은 예정일만 다시 계산한다 (PR #202 리뷰)
+        boolean beforeOpener = history.stream()
+                .filter(s -> s.status() == Schedule.Status.OPEN && s.openedByVisitId() != null)
+                .flatMap(s -> source.visit(s.openedByVisitId()).stream())
+                .anyMatch(opener -> !visit.visitDate().isAfter(opener.visitDate()));
+        if (beforeOpener) {
+            recalculatePet(visit.petId());
+            return new VisitOutcome(null, openId(visit));
+        }
 
         Optional<Schedule> open = schedules.findOpen(visit.petId(), visit.serviceType(), visit.vaccineTypeId());
         Long completed = null;
@@ -96,9 +106,11 @@ public class CycleService {
             Schedule s = open.get();
             LocalDate missedAt = MissJudgement.missedAtOnCompletion(s.dueDate(), s.missThresholdDays(),
                     visit.visitDate(), s.missedAt()).orElse(null);
-            schedules.complete(s.scheduleId(), visitId, visit.visitDate(),
-                    MissJudgement.gapDays(s.dueDate(), visit.visitDate()), missedAt);
-            completed = s.scheduleId();
+            // 동시에 다른 방문이 먼저 완료했으면 바뀐 행이 없다. 이 방문이 완료한 것으로 돌려주지 않는다 (PR #202 리뷰)
+            if (schedules.complete(s.scheduleId(), visitId, visit.visitDate(),
+                    MissJudgement.gapDays(s.dueDate(), visit.visitDate()), missedAt)) {
+                completed = s.scheduleId();
+            }
         }
         source.petProfile(visit.petId()).filter(PetProfile::active).ifPresent(pet -> plan(pet, false, visit));
         return new VisitOutcome(completed, openId(visit));

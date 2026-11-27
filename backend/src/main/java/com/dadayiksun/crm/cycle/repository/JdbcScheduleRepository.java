@@ -81,11 +81,11 @@ public class JdbcScheduleRepository implements ScheduleRepository {
     }
 
     @Override
-    public void complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt) {
-        jdbc.update("""
+    public boolean complete(long scheduleId, long visitId, LocalDate doneDate, int gapDays, LocalDate missedAt) {
+        return jdbc.update("""
                 UPDATE schedule SET status = 'DONE', done_visit_id = ?, done_date = ?, gap_days = ?, missed_at = ?
                  WHERE schedule_id = ? AND status = 'OPEN'
-                """, visitId, Date.valueOf(doneDate), gapDays, missedAt == null ? null : Date.valueOf(missedAt), scheduleId);
+                """, visitId, Date.valueOf(doneDate), gapDays, missedAt == null ? null : Date.valueOf(missedAt), scheduleId) > 0;
     }
 
     @Override

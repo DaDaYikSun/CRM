@@ -39,6 +39,7 @@ class CycleServiceTest {
         schedules = new CycleFakes.Schedules();
         source = new CycleFakes.Source();
         source.rules.put(RABIES, RABIES_RULES);
+        schedules.activePet = petId -> source.petProfile(petId).map(PetProfile::active).orElse(false);
         service = new CycleService(schedules, source, CycleFakes.settings(14), CycleFakes.clockAt(TODAY));
     }
 
@@ -187,6 +188,33 @@ class CycleServiceTest {
             assertThat(again).isEqualTo(first);
             assertThat(schedules.rows).hasSize(rows);
             assertThat(schedules.findById(opened.scheduleId()).orElseThrow()).isEqualTo(opened);
+        }
+
+        @Test
+        void 열린_주기가_없을_때_연_주기는_같은_날_다른_방문으로_닫히지_않는다() {
+            source.visits.add(new VisitInfo(22, 1, ServiceType.GROOMING, null, LocalDate.of(2026, 11, 24)));
+            service.onVisitRecorded(22);
+            long opened = open(1, ServiceType.GROOMING, null).scheduleId();
+
+            source.visits.add(new VisitInfo(23, 1, ServiceType.GROOMING, null, LocalDate.of(2026, 11, 24)));
+            CycleService.VisitOutcome dup = service.onVisitRecorded(23);
+
+            assertThat(dup.completedScheduleId()).isNull();
+            assertThat(schedules.findById(opened).orElseThrow().status()).isEqualTo(Schedule.Status.OPEN);
+            assertThat(dup.nextScheduleId()).isEqualTo(opened);
+        }
+
+        @Test
+        void 열린_주기가_없을_때_연_주기도_뒤_날짜_방문은_완료한다() {
+            source.visits.add(new VisitInfo(22, 1, ServiceType.GROOMING, null, LocalDate.of(2026, 11, 1)));
+            service.onVisitRecorded(22);
+            long opened = open(1, ServiceType.GROOMING, null).scheduleId();
+
+            source.visits.add(new VisitInfo(23, 1, ServiceType.GROOMING, null, LocalDate.of(2026, 11, 24)));
+            CycleService.VisitOutcome next = service.onVisitRecorded(23);
+
+            assertThat(next.completedScheduleId()).isEqualTo(opened);
+            assertThat(schedules.findById(opened).orElseThrow().doneVisitId()).isEqualTo(23L);
         }
 
         @Test
@@ -358,6 +386,7 @@ class CycleServiceTest {
 
         @Test
         void 예정일_14일_뒤_당일은_누락이_아니고_다음_날_원래_판정일로_누락() {
+            source.pets.put(1L, new PetProfile(1, LocalDate.of(2025, 1, 1), true, 70, LocalDate.of(2025, 6, 1)));
             schedules.put(new Schedule(1, 1, ServiceType.VACCINE, RABIES, LocalDate.of(2026, 11, 1), Schedule.Status.OPEN,
                     14, null, null, null, null, "NONE", 0, null));
             MissJudgementJob onDay15 = new MissJudgementJob(schedules, CycleFakes.clockAt(LocalDate.of(2026, 11, 15)));
@@ -368,6 +397,16 @@ class CycleServiceTest {
             assertThat(late.run()).isEqualTo(1);
             assertThat(schedules.findById(1).orElseThrow().missedAt()).isEqualTo(LocalDate.of(2026, 11, 16));
             assertThat(late.run()).isZero();
+        }
+
+        @Test
+        void 무지개다리_아이의_지난_OPEN은_판정하지_않는다() {
+            source.pets.put(1L, new PetProfile(1, LocalDate.of(2025, 1, 1), false, 70, LocalDate.of(2025, 6, 1)));
+            schedules.put(new Schedule(1, 1, ServiceType.VACCINE, RABIES, LocalDate.of(2026, 11, 1), Schedule.Status.OPEN,
+                    14, null, null, null, null, "NONE", 0, null));
+            MissJudgementJob job = new MissJudgementJob(schedules, CycleFakes.clockAt(LocalDate.of(2026, 11, 20)));
+            assertThat(job.run()).isZero();
+            assertThat(schedules.findById(1).orElseThrow().missedAt()).isNull();
         }
     }
 
