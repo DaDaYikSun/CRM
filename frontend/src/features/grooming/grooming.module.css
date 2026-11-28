@@ -1,0 +1,197 @@
+/* S-11 미용 (#155). 목록 · 탭 모양은 S-03 연락 대상(target.module.css)과 같게 */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: var(--spacing-20);
+  align-items: start;
+}
+
+.tabs {
+  display: flex;
+  gap: var(--spacing-16);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--spacing-12);
+}
+
+.tab {
+  padding: var(--spacing-8) var(--spacing-4);
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.tab[aria-current="page"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--action-primary);
+  font-weight: 600;
+}
+
+.find {
+  max-width: 320px;
+  margin-bottom: var(--spacing-12);
+}
+
+.sortNote {
+  color: var(--text-muted);
+  font-size: var(--font-size-13);
+  margin-bottom: var(--spacing-8);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  width: 100%;
+  padding: var(--spacing-12) var(--spacing-16);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-left: 3px solid transparent;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--bg-subtle);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.row[aria-pressed="true"] {
+  border-left-color: var(--action-primary);
+  background: var(--bg-selected);
+}
+
+.done {
+  opacity: 0.75;
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.meta {
+  color: var(--text-muted);
+}
+
+.due {
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--text-muted);
+  padding: var(--spacing-16) 0;
+}
+
+.pager {
+  display: flex;
+  gap: var(--spacing-12);
+  align-items: center;
+  margin-top: var(--spacing-12);
+  color: var(--text-muted);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: var(--spacing-20);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-12);
+  box-shadow: var(--shadow-card);
+  position: sticky;
+  top: var(--spacing-16);
+  max-height: calc(100vh - var(--topbar-height) - var(--spacing-32));
+  overflow-y: auto;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  flex-wrap: wrap;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: var(--font-size-20);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-6);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  padding-top: var(--spacing-12);
+  border-top: 1px solid var(--border-default);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--font-size-14);
+  color: var(--text-secondary);
+}
+
+.line {
+  display: flex;
+  gap: var(--spacing-8);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.historyRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-bottom: var(--spacing-8);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.missedDate {
+  color: var(--status-danger-text);
+  font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    position: static;
+    max-height: none;
+  }
+}
