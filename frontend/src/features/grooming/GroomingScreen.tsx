@@ -24,6 +24,12 @@ const BADGE_TONE: Record<NonNullable<GroomingBadge>, "brand" | "warning" | "dang
   done: "success",
 };
 
+/** 1 이상 정수만. 1.5 · abc · 0이면 1쪽 (서버는 400, PR #237 리뷰) */
+function parsePage(raw: string | null): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+
 function parseTab(raw: string | null): GroomingTab {
   return raw === "week" ? "week" : "today";
 }
@@ -35,7 +41,7 @@ function parseTab(raw: string | null): GroomingTab {
 export function GroomingScreen({ role }: { role: Role }) {
   const params = useSearchParams();
   const tab = parseTab(params.get("tab"));
-  const page = Math.max(1, Number(params.get("page")) || 1);
+  const page = parsePage(params.get("page"));
   const [data, setData] = useState<PageData<GroomingLine> | null>(null);
   const [counts, setCounts] = useState<Partial<Record<GroomingTab, number>>>({});
   const [error, setError] = useState<Failure | null>(null);
@@ -67,7 +73,7 @@ export function GroomingScreen({ role }: { role: Role }) {
       })
       .catch((e: unknown) => {
         if (stale) return;
-        setData(null);
+        // 기록 뒤 다시 읽기가 실패해도 보던 목록은 둔다 (처음 읽기 실패면 data가 이미 비어 있음)
         setError(loadFailure(e));
       });
     // 다른 탭 숫자만 쓰므로 실패하면 숫자만 비운다

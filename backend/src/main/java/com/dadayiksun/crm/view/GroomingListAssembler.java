@@ -1,6 +1,8 @@
 package com.dadayiksun.crm.view;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,7 +43,8 @@ public class GroomingListAssembler {
 
     public PageResponse<Line> assemble(GroomingTab tab, PageQuery page) {
         LocalDate today = clock.today();
-        LocalDate dueUntil = tab == GroomingTab.TODAY ? today : clock.weekEnd();
+        // 이번 주 일요일도 같은 today에서 구한다: 시계를 두 번 읽으면 일요일 자정에 다음 주로 넘어갈 수 있다 (PR #237 리뷰)
+        LocalDate dueUntil = tab == GroomingTab.TODAY ? today : today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
         List<Line> lines = lines(query.find(dueUntil, today));
         long total = lines.size();
         List<Line> items = page.isBeyond(total)

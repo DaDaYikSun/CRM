@@ -47,7 +47,8 @@ export function GroomingPanel({ petId, role, onSaved }: { petId: number; role: R
     load();
   }, [load, attempt]);
 
-  if (error) {
+  // 처음 읽기가 실패했을 때만 전체 오류. 기록 뒤 다시 읽기가 실패하면 보던 값을 두고 위에 오류와 [다시 시도] (PR #237 리뷰)
+  if (error && (!detail || !history)) {
     return (
       <aside className={styles.panel} aria-label="선택한 아이">
         <ErrorState message={error.message} onRetry={error.retry ? () => setAttempt((n) => n + 1) : undefined} />
@@ -65,6 +66,7 @@ export function GroomingPanel({ petId, role, onSaved }: { petId: number; role: R
 
   return (
     <aside className={styles.panel} aria-label="선택한 아이">
+      {error && <ErrorState message={error.message} onRetry={error.retry ? () => setAttempt((n) => n + 1) : undefined} />}
       <div className={styles.panelHead}>
         <h2 className={styles.panelTitle}>
           <Link href={`/pets/${pet.petId}`}>{pet.name}</Link>
