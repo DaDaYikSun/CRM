@@ -1,6 +1,6 @@
 // 백오피스 API (ADM, admin) — 관리자만 (API 설계 3-10). 공용 호출 함수 client.ts만 쓴다 (frontend/README.md).
 // #150: 직원 관리 C16. 다른 이슈(초안 25 · 30 · 31 · 32 · 33)가 이 파일에 함수를 더한다.
-import type { Role } from "@/types/common";
+import type { PageData, Role } from "@/types/common";
 import { api, type SaveOptions } from "./client";
 
 /** GET /api/admin/staff 한 줄 */
@@ -113,4 +113,81 @@ export function getThresholdSettings(): Promise<ThresholdSettings> {
 
 export function saveThresholdSettings(input: ThresholdSettings, options?: SaveOptions): Promise<ThresholdSettings> {
   return api.put<ThresholdSettings>("/api/admin/settings", input, options);
+}
+
+// #182: 선택지 관리 · 설정 변경 이력 (FR-ADM-005 · 006, API 설계 3-10)
+
+/** 숨긴 것도 온다 (isActive = false) */
+export interface BreedItem {
+  breedId: number;
+  name: string;
+  defaultCoatTypeId: number | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+/** PATCH는 보낸 칸만 바꾼다. 기본 털 유형을 비우려면 clearDefaultCoatType: true */
+export interface BreedInput {
+  name?: string;
+  defaultCoatTypeId?: number;
+  clearDefaultCoatType?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface CoatTypeItem {
+  coatTypeId: number;
+  code: string;
+  name: string;
+  defaultGroomWeeks: number;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+/** 미용 기본 간격은 추가할 때만. 바꾸는 것은 B-02 주기 규칙(예정일 다시 계산) */
+export interface CoatTypeInput {
+  name?: string;
+  defaultGroomWeeks?: number;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface RuleHistoryItem {
+  changeLogId: number;
+  targetType: string;
+  targetId: string;
+  /** 품종 · 털 유형 · 접종 종류 이름. 설정 · 문구 · 양식은 null */
+  targetName: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown>;
+  staffName: string;
+  changedAt: string;
+}
+
+export function listBreeds(): Promise<BreedItem[]> {
+  return api.get<BreedItem[]>("/api/admin/breeds");
+}
+
+export function createBreed(input: BreedInput, options?: SaveOptions): Promise<BreedItem> {
+  return api.post<BreedItem>("/api/admin/breeds", input, options);
+}
+
+export function updateBreed(breedId: number, patch: BreedInput, options?: SaveOptions): Promise<BreedItem> {
+  return api.patch<BreedItem>(`/api/admin/breeds/${breedId}`, patch, options);
+}
+
+export function listCoatTypes(): Promise<CoatTypeItem[]> {
+  return api.get<CoatTypeItem[]>("/api/admin/coat-types");
+}
+
+export function createCoatType(input: CoatTypeInput, options?: SaveOptions): Promise<CoatTypeItem> {
+  return api.post<CoatTypeItem>("/api/admin/coat-types", input, options);
+}
+
+export function updateCoatType(coatTypeId: number, patch: CoatTypeInput, options?: SaveOptions): Promise<CoatTypeItem> {
+  return api.patch<CoatTypeItem>(`/api/admin/coat-types/${coatTypeId}`, patch, options);
+}
+
+export function getRuleHistory(page: number): Promise<PageData<RuleHistoryItem>> {
+  return api.get<PageData<RuleHistoryItem>>(`/api/admin/rule-history?page=${page}`);
 }

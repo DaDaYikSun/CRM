@@ -23,6 +23,8 @@ public enum ErrorCode {
     SMS_NOT_AGREED(HttpStatus.CONFLICT, "안내 문자 수신에 동의하지 않은 보호자입니다. 전화로 연락해 주세요."),
     PET_RAINBOW(HttpStatus.CONFLICT, "무지개다리로 표시된 아이라 기록을 남길 수 없습니다. 기록이 필요하면 관리자에게 표시 되돌리기를 요청해 주세요."),
     LOGIN_ID_TAKEN(HttpStatus.CONFLICT, "이미 쓰는 아이디입니다. 다른 아이디를 입력해 주세요."),
+    /** 같은 이름의 품종 · 털 유형 선택지 (정책 4-2 '같은 선택지 (B-03)', FR-ADM-005, #182) */
+    OPTION_DUPLICATE(HttpStatus.CONFLICT, "이미 있는 선택지입니다. 다른 이름을 입력해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, null);
 
     /**
